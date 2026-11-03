@@ -16,6 +16,6 @@ Versions are planned milestones, not implemented features or promised dates.
 ## Immediate next steps
 
 1. Complete the [0.1.0 live Fusion acceptance checks](INSTALLATION.md) on Windows and macOS and record Fusion builds.
-2. Confirm a dimensioned side-relief prototype.
+2. Review and confirm [contour proposal A](CONTOUR_PROPOSAL.md): dimensioned SVG and independent contour math are prepared; flank shape, width convention and axial extent remain open.
 3. Prototype supported Fusion geometry, persistence and edit APIs for 0.2.0.
 4. Implement one-seat geometry and persistent reopening/editing before expanding to later milestones.

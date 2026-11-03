@@ -56,8 +56,11 @@ class FoundationTests(unittest.TestCase):
         self.definitions = Items()
         self.controls = Items()
         self.workspace = SimpleNamespace(toolbarPanels=Items())
-        self.workspace.toolbarPanels.items['SolidScriptsAddinsPanel'] = SimpleNamespace(
+        self.workspace.toolbarPanels.items['SolidCreatePanel'] = SimpleNamespace(
             controls=self.controls)
+        self.legacy_controls = Items()
+        self.workspace.toolbarPanels.items['SolidScriptsAddinsPanel'] = SimpleNamespace(
+            controls=self.legacy_controls)
         self.ui = SimpleNamespace(commandDefinitions=self.definitions, workspaces=Items())
         self.ui.workspaces.items['FusionSolidEnvironment'] = self.workspace
         core = ModuleType('adsk.core')
@@ -109,6 +112,16 @@ class FoundationTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.entry.start()
         self.assertFalse(self.definitions.items)
+        self.entry.stop()
+
+    def test_registration_migrates_from_utilities_to_solid_create(self):
+        self.legacy_controls.add(self.entry.CMD_ID)
+        self.entry.start()
+        self.assertFalse(self.legacy_controls.items)
+        control = self.controls.itemById(self.entry.CMD_ID)
+        self.assertTrue(control.isPromoted)
+        self.assertTrue(control.isPromotedByDefault)
+        self.assertTrue(Path(self.entry.ICON_FOLDER, '32x32.svg').is_file())
         self.entry.stop()
 
     def test_failed_control_registration_cleans_up_definition_and_handlers(self):

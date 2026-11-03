@@ -1,14 +1,14 @@
-﻿# BearingNest
+# BearingNest
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.1.0** · Status: dialog foundation implemented; live Fusion verification pending.
+Version: **0.1.0** · Status: dialog foundation implemented; initial command launch confirmed by the owner; full live verification pending.
 
 BearingNest is a Fusion add-in project for creating 3D-print-oriented ball bearing seats with rounded reliefs and an odd number of contact lands.
 
 ## Available in 0.1.0
 
-- One BearingNest command in the Design workspace, under Utilities > Add-Ins.
+- One BearingNest command in the Design workspace, under Solid > Create.
 - Exactly three English dialog tabs: **Bearing Seat**, **Settings**, **About**.
 - Integrated command icons, About logo, version and parameter guidance.
 - Template-based command registration and cleanup on stop.
@@ -28,6 +28,7 @@ The current version is maintained in [version.py](Fusion-Add-In/BearingNest/vers
 - [Agent and implementation instructions](doku/AGENTS.md)
 - [Functional specification](doku/SPECIFICATION.md)
 - [Roadmap](doku/ROADMAP.md)
+- [Dimensioned contour proposal](doku/CONTOUR_PROPOSAL.md)
 - [Changelog](CHANGELOG.md)
 - [API notes and verification status](doku/API_NOTES.md)
 - Visual assets: [logo](images/logo.svg), [banner](images/banner.svg), [bearing seat icon](images/bearing-seat.svg)

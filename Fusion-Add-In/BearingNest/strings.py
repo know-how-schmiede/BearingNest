@@ -5,7 +5,7 @@ TEXT = {
     'bearing_seat': 'Bearing Seat',
     'settings': 'Settings',
     'about': 'About',
-    'missing_panel': 'The Design workspace Add-Ins panel is unavailable.',
+    'missing_panel': 'The Solid tab Create panel in the Design workspace is unavailable.',
     'foundation_status': '<b>Version {version} - Foundation</b><br>The dialog foundation is available. Seat creation is planned for a later milestone.',
     'workflow': '<b>Planned workflow</b><br>1. Select a planar face and seat positions.<br>2. Choose a bearing and adjust the fit.<br>3. Review the preview and create the seats.',
     'geometry_status': 'Face selection, bearing parameters, geometry, preview and editing are not available in this version. Closing this dialog leaves the design unchanged.',

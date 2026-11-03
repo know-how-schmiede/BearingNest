@@ -2,6 +2,8 @@
 
 ## 0.1.0 — 2026-11-03
 
+- Moved the command to Solid > Create, added legacy toolbar cleanup and unified toolbar artwork in a dedicated resource folder. Live verification of these changes is pending.
+- Prepared a dimensioned, mathematically tangent contour proposal for review before the 0.2.0 geometry implementation.
 - Centralized the current version in `version.py`; plugin displays import it, and `tools/sync_version.py` synchronizes the manifest and README version header.
 - Adapted the owner's Python add-in template for the BearingNest foundation.
 - Registered one BearingNest command; disabled registration of sample palettes.

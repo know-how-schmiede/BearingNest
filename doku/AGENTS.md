@@ -11,6 +11,9 @@
 ## Product rules
 
 - Exactly three initial dialog tabs: **Bearing Seat**, **Settings**, **About**.
+- Register BearingNest in Design > Solid > Create (`FusionSolidEnvironment` / `SolidCreatePanel`), promoted to the toolbar. Do not register it under Utilities > Add-Ins. Remove any legacy BearingNest control there during migration and cleanup.
+- Use the BearingNest logo consistently for toolbar SVG/PNG resources. Keep toolbar resources in the dedicated `resources/toolbar` folder; the About image remains a PNG in `resources`.
+- Review [the dimensioned contour proposal](CONTOUR_PROPOSAL.md) before the geometry prototype. Its flank shape, width convention and axial extent are still proposals, not confirmed product requirements.
 - Develop the UI, identifiers, messages, comments and project documentation in English.
 - Introduce localization near completion. English is the source locale; German is a translation. Keep UI strings centralized now, without implementing the full translation system prematurely.
 - Keep bearing dimensions, manufacturing corrections and print-derived defaults separate.

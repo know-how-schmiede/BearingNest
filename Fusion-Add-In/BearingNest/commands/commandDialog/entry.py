@@ -11,15 +11,24 @@ ui = app.userInterface
 
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_bearingSeat'
 WORKSPACE_ID = 'FusionSolidEnvironment'
-PANEL_ID = 'SolidScriptsAddinsPanel'
-RESOURCE_FOLDER = os.path.join(os.path.dirname(__file__), 'resources', '')
+PANEL_ID = 'SolidCreatePanel'
+LEGACY_PANEL_ID = 'SolidScriptsAddinsPanel'
+RESOURCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
+ICON_FOLDER = os.path.join(RESOURCE_FOLDER, 'toolbar', '')
 local_handlers = []
 _definition_handlers = []
 
 
-def _panel():
+def _panel(panel_id=PANEL_ID):
     workspace = ui.workspaces.itemById(WORKSPACE_ID)
-    return workspace.toolbarPanels.itemById(PANEL_ID) if workspace else None
+    return workspace.toolbarPanels.itemById(panel_id) if workspace else None
+
+
+def _remove_legacy_control():
+    panel = _panel(LEGACY_PANEL_ID)
+    control = panel.controls.itemById(CMD_ID) if panel else None
+    if control:
+        control.deleteMe()
 
 
 def start():
@@ -27,16 +36,18 @@ def start():
     panel = _panel()
     if not panel:
         raise RuntimeError(TEXT['missing_panel'])
+    _remove_legacy_control()
     definition = ui.commandDefinitions.itemById(CMD_ID)
     try:
         if not definition:
             definition = ui.commandDefinitions.addButtonDefinition(
-                CMD_ID, config.ADDIN_NAME, TEXT['description'], RESOURCE_FOLDER)
+                CMD_ID, config.ADDIN_NAME, TEXT['description'], ICON_FOLDER)
             futil.add_handler(definition.commandCreated, command_created,
                               local_handlers=_definition_handlers)
         control = panel.controls.itemById(CMD_ID)
         if not control:
             control = panel.controls.addCommand(definition)
+        control.isPromotedByDefault = True
         control.isPromoted = True
     except Exception:
         stop()
@@ -45,6 +56,7 @@ def start():
 
 def stop():
     """Remove toolbar UI and release template event handler references."""
+    _remove_legacy_control()
     panel = _panel()
     control = panel.controls.itemById(CMD_ID) if panel else None
     if control:
