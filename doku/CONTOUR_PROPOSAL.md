@@ -1,6 +1,6 @@
 # Rounded seat contour — proposal A
 
-Status: construction A confirmed by the owner for the 0.2.0 prototype, including derived transition width and full axial seat depth. This contour is not yet used by the add-in; live Fusion validation is still required.
+Status: construction A confirmed by the owner for the 0.2.0 prototype, including derived transition width and full axial seat depth. The add-in now uses the shared contour implementation for a single-seat cut; live Fusion validation is still required.
 
 ![Dimensioned contour proposal](../images/contour-proposal.svg)
 
@@ -43,6 +43,6 @@ Reject a contour when the outer wall endpoint is not beyond the inner endpoint, 
 
 ## Reproduction and checks
 
-Run `python tools/contour_prototype.py` to regenerate the SVG. The prototype uses only the Python standard library and contains no Fusion calls. Automated checks verify closed contours and tangent continuity for 3, 5, 7 and 9 lands, and reject example infeasible dimensions. They do not prove manufacturability or Fusion feature creation.
+Run `python tools/contour_prototype.py` to regenerate the SVG. It imports the same pure `contour_geometry.py` used by the add-in. Automated checks verify closed contours and tangent continuity for 3, 5, 7 and 9 lands, and reject example infeasible dimensions. They do not prove manufacturability or Fusion feature creation.
 
-The owner selected this complete proposal. Snapshot serialization and a Fusion attribute adapter are now implemented separately; the single-seat geometry prototype, actual geometry updates and file-reopen behavior still need live proof.
+The owner selected this complete proposal. The single-seat geometry prototype writes snapshots on commit. Actual geometry updates and file-reopen behavior still need implementation and live proof.

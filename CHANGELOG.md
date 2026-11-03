@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.1.5 - 2026-11-03
+
+- Address the concrete 0.1.4 preview error: Position 1 could not produce exactly one closed sketch profile.
+- Keep generated contour sketches visible with profiles enabled while constructing and consuming their profiles, matching the working 0.1.2 construction order. Hide sketches only after their final cuts; retain profile calculation for feature-driven recomputation.
+- Include the observed profile count in any remaining profile error.
+- Replace constant-count test profiles with a state-dependent regression substitute and verify that both validation and cut extrusions can access the profile.
+- Synchronize version.py, manifest, menu and README to 0.1.5. The 0.1.4 validation-only change was insufficient; this fixes the earlier profile suppression regression.
+
+Validation: 43 automated tests pass. The updated construction order still needs live Fusion confirmation.
+
+## 0.1.4 - 2026-11-03
+
+- Make validateInputs read-only with respect to command inputs: it only sets areInputsValid and no longer rewrites the status textbox while Fusion is validating the dialog.
+- Update status text from inputChanged and preview/execute callbacks, skipping identical text to avoid unnecessary input invalidation.
+- Keep basic dialog validation independent of face topology temporarily changed by preview; full placement and batch validation still run before preview/creation.
+- Clear stale preview errors before retrying and after relevant input changes. Keep actual current preview errors blocking creation.
+- Synchronize the central version, manifest, menu and README to 0.1.4.
+
+Validation: 42 automated tests pass, including read-only validation, error recovery and preview retries. The reported disabled button was observed in 0.1.3; the 0.1.4 change has not yet been live-verified.
+
+## 0.1.3 - 2026-11-03
+
+- Allow multiple point, vertex and circular-edge-center selections on one face with shared parameters and a displayed position count.
+- Resolve all positions, reject duplicate centers, and validate every contour tool and pairwise overlap before the first cut. Any failure rejects the entire batch, including later cut or snapshot failures.
+- Replace retained tool/combine geometry with direct cut extrusions scoped to the selected body; delete hidden validation tools before cutting.
+- Hide generated sketch profile fills. Successful creation also disables profile fills on selected placement sketches while retaining their points, curves and visibility. Restore source display flags on failed batches; preview does not alter them.
+- Address possible sources of the triangular surface artifacts reported for 0.1.2. The screenshot does not establish the exact cause; the new display behavior still needs live confirmation. Existing seats are not rebuilt automatically.
+- Synchronize version.py, manifest, menu label and README to 0.1.3; expand installation and regression instructions.
+
+Validation: 38 automated tests pass using an API substitute. The owner confirmed single-seat creation in 0.1.2; new batch/display changes and macOS remain unverified.
+
+## 0.1.2 - 2026-11-03
+
+- Add one-face/one-position selection and manual bearing/fit/contour inputs in the Bearing Seat tab.
+- Share contour A geometry between the add-in and documentation renderer; convert mm/degrees explicitly at the Fusion boundary.
+- Add an opt-in preview and Create Seat action using a contour sketch, solid tool extrusion and combine cut.
+- Check the complete tool for containment against the selected body and verify remaining floor material before cutting.
+- Save a schema-versioned snapshot on successful creation. Abort execute transactions and remove generated features on failures; never persist a preview snapshot.
+- Restrict the prototype to parametric root-component solid bodies. Shaft opening, inner-ring relief, chamfer, multi-placement and editing remain pending.
+- Update the version source, manifest, README and geometry acceptance instructions.
+
+Validation: 29 automated tests pass, plus source/API checks. Tests substitute the Fusion API; no live geometry, cancellation or undo acceptance is claimed. Inspection found a separate installed AddIns copy, which was not changed.
+
 ## 0.1.1 - 2026-11-03
 
 - Display the current release version after the BearingNest command name; synchronize the manifest and README.

@@ -1,10 +1,11 @@
-﻿"""BearingNest foundation dialog; no model changes in version 0.1.0."""
+"""BearingNest registration and three-tab seat prototype dialog."""
 import os
 import adsk.core
 from ...lib import fusionAddInUtils as futil
 from ... import config
 from ...version import VERSION
 from ...strings import TEXT
+from .seat_dialog import SeatDialog
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -78,15 +79,21 @@ def _text(inputs, identity, key, rows):
 
 def command_created(args: adsk.core.CommandCreatedEventArgs):
     command = args.command
-    command.isOKButtonVisible = False
-    command.setDialogInitialSize(520, 480)
+    command.isOKButtonVisible = True
+    command.okButtonText = TEXT['create_seat']
+    command.setDialogInitialSize(540, 650)
     futil.add_handler(command.destroy, command_destroy, local_handlers=local_handlers)
     inputs = command.commandInputs
 
     seat = inputs.addTabCommandInput('bearing_seat_tab', TEXT['bearing_seat']).children
     _text(seat, 'foundation_status', 'foundation_status', 3)
-    _text(seat, 'workflow', 'workflow', 5)
+    dialog = SeatDialog(seat, app)
     _text(seat, 'geometry_status', 'geometry_status', 3)
+    for event, callback in ((command.validateInputs, dialog.validate),
+                            (command.inputChanged, dialog.changed),
+                            (command.executePreview, dialog.preview),
+                            (command.execute, dialog.execute)):
+        futil.add_handler(event, callback, local_handlers=local_handlers)
 
     settings = inputs.addTabCommandInput('settings_tab', TEXT['settings']).children
     _text(settings, 'settings_status', 'settings_status', 4)

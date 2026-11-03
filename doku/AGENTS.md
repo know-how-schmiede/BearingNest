@@ -21,7 +21,10 @@
 - Support reopening and editing seats created by BearingNest. Prototype the persistence and edit strategy before building the complete geometry engine; use supported Fusion capabilities and document limitations.
 - Convert millimetres and degrees explicitly at the Fusion API boundary; do not assume API internal units.
 - Never leave permanent geometry behind after cancelling a preview. Clean up event handlers on stop.
+- Keep validateInputs free of command-input writes and model changes: only set areInputsValid. Update status text from inputChanged/preview/execute, avoid identical repeated writes, and do not validate placement topology against already-modified preview geometry. Clear stale preview errors on relevant edits and successful retries.
 - For multiple seats, validate all positions before committing. Reject an invalid batch without partial permanent cuts.
+- The current prototype supports batches on one planar face of a parametric root-component body. Prepare all contours and validate containment and pairwise overlap before the first cut. Delete hidden validation extrusions before creating direct cut extrusions restricted to the target body; do not retain coplanar tool bodies. Do not equate isolated API-substitute tests with live Fusion preview/undo verification.
+- Keep generated contour sketches and their profile calculation enabled while building and consuming their profiles. Hide generated sketches with isVisible=False only after their final cuts; do not disable areProfilesShown on these feature-driving sketches. On successful creation, disable only profile fills of selected placement sketches, leaving their points, curves and visibility intact; restore original fills if the batch fails. Preview must not alter source sketch profile-display preferences.
 - Thin walls produce warnings only. Unintended breakout and conflicting seats are errors; deliberate shaft through-holes are allowed.
 
 ## Validation and delivery

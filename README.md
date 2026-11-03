@@ -2,42 +2,47 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.1.1** · Status: dialog foundation implemented; initial command launch confirmed by the owner; full live verification pending.
+Version: **0.1.5** · Status: multi-position prototype; profile-construction fix awaiting live verification.
 
-BearingNest is a Fusion add-in project for creating 3D-print-oriented ball bearing seats with rounded reliefs and an odd number of contact lands.
+BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
-## Available in the 0.1 series
+## Available in this prototype
 
-- One BearingNest command in the Design workspace, under Solid > Create. The menu label includes the current version from version.py.
-- Exactly three English dialog tabs: **Bearing Seat**, **Settings**, **About**.
-- Integrated command icons, About logo, version and parameter guidance.
-- Template-based command registration and cleanup on stop.
+- `BearingNest <VERSION>` under Design > Solid > Create, with three English tabs: **Bearing Seat**, **Settings**, **About**.
+- One planar face and multiple sketch points, vertices or circular edge centers as seat positions, with shared settings.
+- Manual bearing outside diameter/width, diameter and axial corrections, 3/5/7/9 lands, contact angle, rotation, radial relief depth and transition radius.
+- Shared construction of [confirmed contour A](doku/CONTOUR_PROPOSAL.md), opt-in cut preview and a **Create Seats** action.
+- Checks of every complete solid cutting tool against the selected body, remaining floor and all other proposed seats before the first cut. An invalid position rejects the entire batch.
+- A versioned snapshot on each direct cut extrusion. Validation tool extrusions are removed before cutting.
+- Contour sketches hidden after cutting, with profiles kept enabled for feature calculation; successful creation also hides profile fills on selected placement sketches while preserving points, curves and sketch visibility.
 
-The menu position is confirmed by the owner. The updated version label still needs a live check. An internal snapshot/attribute prototype is covered by isolated tests and is not yet wired to seat creation.
+The prototype supports a single solid body in the root component of a parametric design. It does not yet provide a shaft opening, inner-ring relief, chamfer, catalog, print profile management, thin-wall warnings or reopening/editing seats. The 0.2.0 milestone remains incomplete.
 
-This version provides an informational, Close-only dialog. It does not create geometry, select faces, preview cuts, save settings or edit seats. Geometry and persistent editing start with the 0.2.0 prototype.
+## Install and try
 
-## Install and check
+Use the complete [BearingNest add-in folder](Fusion-Add-In/BearingNest). If Fusion loads a copy from its AddIns directory, update that entire copy before restarting the add-in. Restarting alone does not copy repository changes.
 
-Register the complete [BearingNest add-in folder](Fusion-Add-In/BearingNest) in Fusion's Scripts and Add-Ins dialog. Keep its name and contents intact, including the manifest, `lib` and command resources. Follow the [installation and verification guide](doku/INSTALLATION.md).
+Follow the [installation and test guide](doku/INSTALLATION.md). First test on a disposable design. The owner confirmed single-seat creation in 0.1.2 and reported triangular surface artifacts. The 0.1.3 batch and display changes have automated tests using an API substitute; their live verification is pending. Version 0.1.4 made dialog validation read-only but did not resolve the reported error. Version 0.1.5 keeps sketches/profiles enabled until the final cut and hides sketches afterwards; live confirmation remains pending.
 
-Target environments are Autodesk Fusion on Windows and macOS, using Fusion's bundled Python runtime. No third-party Python packages are required. Neither platform has completed live verification; no minimum Fusion build is claimed yet.
+Target environments are Autodesk Fusion on Windows and macOS with Fusion's bundled Python. No third-party Python packages are required. The owner confirmed command launch and Solid > Create placement on Windows in an earlier version. The new batch/display behavior and macOS remain unverified.
+
+## Version maintenance
+
+The only manually maintained current release version is [version.py](Fusion-Add-In/BearingNest/version.py). After changing it, run `python tools/sync_version.py` to update the Fusion manifest and this README header. Check with `python tools/sync_version.py --check`. Plugin displays import the same constant. Historical milestone and changelog versions stay unchanged.
 
 ## Project documents
-
-The current version is maintained in [version.py](Fusion-Add-In/BearingNest/version.py). After changing it, run `python tools/sync_version.py` to update this page's version header and the Fusion manifest. Verify consistency with `python tools/sync_version.py --check`. Plugin version displays import the same constant directly. Historical milestone and changelog versions remain unchanged.
 
 - [Agent and implementation instructions](doku/AGENTS.md)
 - [Functional specification](doku/SPECIFICATION.md)
 - [Roadmap](doku/ROADMAP.md)
-- [Dimensioned contour proposal](doku/CONTOUR_PROPOSAL.md)
-- [Persistence prototype and remaining Fusion checks](doku/PERSISTENCE_PROTOTYPE.md)
 - [Changelog](CHANGELOG.md)
+- [Contour A](doku/CONTOUR_PROPOSAL.md)
+- [Persistence and remaining edit proof](doku/PERSISTENCE_PROTOTYPE.md)
 - [API notes and verification status](doku/API_NOTES.md)
 - Visual assets: [logo](images/logo.svg), [banner](images/banner.svg), [bearing seat icon](images/bearing-seat.svg)
 
-The owner's Python template in `Fusion-Add-In` supplies the run/stop entry points, command registry and Autodesk event utilities. Palette examples remain in the source tree for reference and are not registered.
+The owner's Python template supplies the run/stop entry points, command registry and Autodesk event utilities. Palette examples remain inactive.
 
-The initial product and documentation language is English. Localization is planned near completion, with English as the source language and German as the first translation.
+Product and documentation language is English. German localization is planned near completion.
 
-Licensed under the [MIT License](LICENSE). The bundled Autodesk utilities retain their [original copyright and warranty notices](THIRD_PARTY_NOTICES.md). Bearing data must be manufacturer-verified before catalog release.
+Licensed under the [MIT License](LICENSE). Bundled Autodesk utilities retain their [original notices](THIRD_PARTY_NOTICES.md). Manual example dimensions are not manufacturer-verified catalog records.

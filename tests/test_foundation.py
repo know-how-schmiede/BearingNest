@@ -1,11 +1,12 @@
 """Isolated lifecycle checks; actual Fusion behavior requires manual checks."""
 import importlib
 import json
+import math
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 ROOT = Path(__file__).resolve().parents[1] / 'Fusion-Add-In' / 'BearingNest'
 
@@ -50,6 +51,34 @@ class Inputs:
             raise FileNotFoundError(filename)
         return SimpleNamespace()
 
+    def addSelectionInput(self, identity, label, prompt):
+        field = SimpleNamespace(id=identity, filters=[], selectionCount=0)
+        field.addSelectionFilter = field.filters.append
+        field.setSelectionLimits = lambda minimum, maximum: setattr(field, 'limits', (minimum, maximum))
+        self.fields.append(field)
+        return field
+
+    def addValueInput(self, identity, label, units, expression):
+        number = float(expression.split()[0])
+        value = math.radians(number) if units == 'deg' else number / 10
+        field = SimpleNamespace(id=identity, value=value, isValidExpression=True)
+        self.fields.append(field)
+        return field
+
+    def addDropDownCommandInput(self, identity, label, style):
+        field = SimpleNamespace(id=identity, selectedItem=None)
+        def add(name, selected, icon):
+            if selected:
+                field.selectedItem = SimpleNamespace(name=name)
+        field.listItems = SimpleNamespace(add=add)
+        self.fields.append(field)
+        return field
+
+    def addBoolValueInput(self, identity, label, checkbox, resource, initial):
+        field = SimpleNamespace(id=identity, value=initial)
+        self.fields.append(field)
+        return field
+
 
 class FoundationTests(unittest.TestCase):
     def setUp(self):
@@ -67,6 +96,8 @@ class FoundationTests(unittest.TestCase):
         core.Application = SimpleNamespace(get=lambda: SimpleNamespace(userInterface=self.ui))
         core.CommandCreatedEventArgs = object
         core.CommandEventArgs = object
+        core.ValueInput = SimpleNamespace(createByString=lambda expression: expression)
+        core.DropDownStyles = SimpleNamespace(TextListDropDownStyle=0)
         adsk = ModuleType('adsk')
         adsk.core = core
         self.callbacks = []
@@ -133,24 +164,142 @@ class FoundationTests(unittest.TestCase):
         self.assertFalse(self.definitions.items)
         self.assertFalse(self.entry._definition_handlers)
 
-    def test_dialog_has_three_tabs_and_close_only_with_handler_cleanup(self):
+    def make_dialog(self):
         inputs = Inputs()
         command = SimpleNamespace(commandInputs=inputs, destroy=object(),
+                                  validateInputs=object(), inputChanged=object(),
+                                  executePreview=object(), execute=object(),
                                   setDialogInitialSize=lambda width, height: None)
         self.entry.command_created(SimpleNamespace(command=command))
+        dialog = next(callback.__self__ for callback in self.callbacks
+                      if callback.__name__ == 'execute')
+        return command, inputs, dialog
+
+    def test_dialog_has_three_tabs_required_selections_and_handler_cleanup(self):
+        command, inputs, dialog = self.make_dialog()
         self.assertEqual([tab.label for tab in inputs.tabs],
                          ['Bearing Seat', 'Settings', 'About'])
-        self.assertFalse(command.isOKButtonVisible)
-        for tab in inputs.tabs:
-            self.assertTrue(all(field.readonly for field in tab.children.fields))
+        self.assertTrue(command.isOKButtonVisible)
+        self.assertEqual(command.okButtonText, 'Create Seats')
+        self.assertEqual(dialog.fields['seat_position'].limits, (1, 0))
+        self.assertEqual(dialog.fields['seat_face'].filters, ['PlanarFaces'])
+        self.assertIn('CircularEdges', dialog.fields['seat_position'].filters)
+        self.assertFalse(dialog.fields['seat_preview'].value)
         self.assertTrue(self.entry.local_handlers)
         self.entry.command_destroy(None)
         self.assertFalse(self.entry.local_handlers)
+
+    def test_execute_failure_marks_entire_command_transaction_for_abort(self):
+        command, inputs, dialog = self.make_dialog()
+        geometry = ModuleType('foundation.seat_geometry')
+        geometry.create_seats = Mock(side_effect=RuntimeError('snapshot failed'))
+        args = SimpleNamespace()
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, 2, 3, 4)):
+            dialog.execute(args)
+        self.assertTrue(args.executeFailed)
+        self.assertEqual(args.executeFailedMessage, 'snapshot failed')
+
+    def test_preview_is_opt_in_and_cannot_be_committed_without_execute(self):
+        command, inputs, dialog = self.make_dialog()
+        geometry = ModuleType('foundation.seat_geometry')
+        geometry.create_seats = Mock()
+        args = SimpleNamespace(isValidResult=True)
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            dialog.preview(args)
+            geometry.create_seats.assert_not_called()
+            dialog.fields['seat_preview'].value = True
+            dialog.preview(args)
+        self.assertFalse(args.isValidResult)
+        geometry.create_seats.assert_called_once_with(1, 2, [3], parameters, persist=False)
+
+    def test_dialog_converts_internal_length_and_angle_units_before_model_validation(self):
+        command, inputs, dialog = self.make_dialog()
+        geometry = ModuleType('foundation.seat_geometry')
+        geometry.placement = Mock()
+        fusion = ModuleType('adsk.fusion')
+        fusion.Design = SimpleNamespace(cast=lambda value: value)
+        dialog.app.activeProduct = object()
+        for identity in ('seat_face', 'seat_position'):
+            dialog.fields[identity].selectionCount = 1
+            dialog.fields[identity].selection = lambda index: SimpleNamespace(entity=object())
+        dialog.fields['seat_position'].selectionCount = 3
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry, 'adsk.fusion': fusion}), \
+                patch.object(sys.modules['adsk'], 'fusion', fusion, create=True):
+            request = dialog._request()
+        parameters = request[-1]
+        self.assertEqual(len(request[2]), 3)
+        self.assertEqual(geometry.placement.call_count, 3)
+        self.assertEqual(parameters.outside_mm, 22)
+        self.assertAlmostEqual(parameters.correction_mm, -0.1)
+        self.assertAlmostEqual(parameters.land_degrees, 30)
+        self.assertAlmostEqual(parameters.relief_mm, 1.2)
 
     def test_manifest_and_runtime_versions_match(self):
         manifest = json.loads((ROOT / 'BearingNest.manifest').read_text(encoding='utf-8-sig'))
         self.assertEqual(manifest['version'], self.entry.VERSION)
         self.assertTrue((ROOT / manifest['iconFilename']).is_file())
+
+    def test_validation_enables_create_without_writing_any_dialog_input(self):
+        command, inputs, dialog = self.make_dialog()
+        class ReadOnlyStatus:
+            @property
+            def formattedText(self):
+                return 'unchanged'
+            @formattedText.setter
+            def formattedText(self, value):
+                raise AssertionError('Dialog inputs must not be changed during validation')
+        dialog.status = ReadOnlyStatus()
+        args = SimpleNamespace(areInputsValid=False)
+        with patch.object(dialog, '_request', return_value=(1, 2, [3], object())) as request:
+            dialog.validate(args)
+        self.assertTrue(args.areInputsValid)
+        request.assert_called_once_with(check_placement=False)
+
+    def test_input_edit_clears_old_preview_error_and_recovers_create(self):
+        command, inputs, dialog = self.make_dialog()
+        dialog.geometry_error = 'previous preview failed'
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        args = SimpleNamespace(areInputsValid=False)
+        with patch.object(dialog, '_request', return_value=(1, 2, [3, 4], parameters)):
+            dialog.changed(SimpleNamespace(input=SimpleNamespace(id='outside_mm')))
+            dialog.validate(args)
+        self.assertIsNone(dialog.geometry_error)
+        self.assertTrue(args.areInputsValid)
+        self.assertIn('2 position', dialog.status.formattedText)
+
+    def test_unchanged_status_does_not_invalidate_inputs_again(self):
+        command, inputs, dialog = self.make_dialog()
+        status = Mock()
+        dialog.status = status
+        with patch.object(type(dialog), '_set_status', wraps=dialog._set_status):
+            dialog._set_status('Ready')
+            # A repeated call must not change the underlying status property.
+            status.formattedText = 'sentinel'
+            dialog._set_status('Ready')
+        self.assertEqual(status.formattedText, 'sentinel')
+
+    def test_failed_preview_is_retried_successfully_without_stale_error_latching(self):
+        command, inputs, dialog = self.make_dialog()
+        dialog.fields['seat_preview'].value = True
+        geometry = ModuleType('foundation.seat_geometry')
+        geometry.create_seats = Mock(side_effect=[RuntimeError('preview failure'), []])
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        args = SimpleNamespace(isValidResult=True)
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            dialog.preview(args)
+            invalid = SimpleNamespace(areInputsValid=True)
+            dialog.validate(invalid)
+            self.assertFalse(invalid.areInputsValid)
+            dialog.preview(args)
+            valid = SimpleNamespace(areInputsValid=False)
+            dialog.validate(valid)
+        self.assertIsNone(dialog.geometry_error)
+        self.assertTrue(valid.areInputsValid)
+        self.assertFalse(args.isValidResult)
 
 
 if __name__ == '__main__':

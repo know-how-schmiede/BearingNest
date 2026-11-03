@@ -1,6 +1,6 @@
 # Seat persistence prototype
 
-Status: implemented snapshot codec and Fusion API adapter; not yet connected to the command UI or generated geometry. This is preparation for 0.2.0, not a completed editable-seat feature.
+Status: the snapshot codec and Fusion API adapter are now connected to the creation command. Successful execute writes one snapshot to each direct cut extrusion; preview does not persist one. Reopening/editing is not yet implemented, and save/reopen in Fusion is not yet verified.
 
 ## Implemented behavior
 
@@ -11,6 +11,8 @@ The prototype validates record structure, finite JSON values, Boolean auto/manua
 `seat_storage.py` uses the attribute group `BearingNest` and name `seat_snapshot`. Attach this attribute to the generated seat feature. Saving again updates the same attribute; replacing a different seat ID is rejected. Discovery uses entity attributes because Fusion's design search excludes attributes attached directly to Product/Document objects. Invalid records must be reported individually by the future UI.
 
 Reference lookup uses `findEntityByToken`. A missing token or multiple matches requires repair; the prototype never chooses a split face automatically. This is intentionally stricter than taking the first match. Source dictionaries and token strings are not used as persistent object identities.
+
+Since 0.1.3, snapshots reference the contour and direct cut feature; deleted validation tools are not persisted. The schema's feature map also remains able to read older snapshots containing a tool reference. Existing 0.1.2 seats are not rebuilt or migrated automatically.
 
 ## Remaining Fusion proof
 
