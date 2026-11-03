@@ -85,6 +85,6 @@ Persist placement references, effective geometry parameters, auto/manual flags, 
 - Final side-relief curve definition and axial extent, confirmed by the owner or a dimensioned prototype.
 - Calibrated profile defaults, minimum useful outer-ring support and radial inner-ring clearance.
 - Final manufacturer-verified library records and purchasing links.
-- License, publisher identity, actual repository URL and supported Fusion/platform versions.
+- Publisher identity, actual repository URL and verified Fusion/platform versions. The project uses the MIT license in `../LICENSE`; bundled Autodesk utilities retain their own notices.
 
 These do not block project setup; they gate the relevant implementation/release milestone.

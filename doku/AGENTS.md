@@ -23,6 +23,10 @@
 
 ## Validation and delivery
 
+- Use `Fusion-Add-In/BearingNest/version.py` and its `VERSION` constant as the only manually maintained current release version. Import it directly in plugin code; do not define a separate version in `config.py` or UI strings.
+- After changing `version.py`, run `python tools/sync_version.py` from the repository root. This updates the manifest's literal JSON version and the README current-version header. Fusion cannot import Python values from its manifest.
+- Before delivery, run `python tools/sync_version.py --check` and the automated tests. Fix version drift before packaging. Keep historical changelog entries and roadmap milestone versions unchanged; document release behavior separately.
+
 - Test geometry math, unit conversion, correction signs, profile overrides, persistence migrations and invalid placement behavior where meaningful.
 - Verify actual commands, previews, cancellation, edits and feature creation in Fusion. Clearly distinguish automated checks from manual Fusion checks.
 - Verify source dimensions for the seed bearing catalog. Unknown inner-ring dimensions stay unknown; never fabricate them.

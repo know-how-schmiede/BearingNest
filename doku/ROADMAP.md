@@ -4,7 +4,7 @@ Versions are planned milestones, not implemented features or promised dates.
 
 | Version | Scope | Completion criteria |
 |---|---|---|
-| 0.1.0 | Foundation | Import owner template; version/lifecycle setup; three English tabs; visual assets integrated; supported environment documented. Current files are preparation for this milestone. |
+| 0.1.0 | Foundation | Implemented: owner template integration, version/lifecycle setup, three English tabs, integrated visual assets and environment documentation. Local checks pass; live Fusion acceptance checks remain open. |
 | 0.2.0 | Geometry and edit proof | Confirm dimensioned rounded contour; one seat on one face; corrections, shaft modes and inner-ring relief; prove persistent reopening/editing. |
 | 0.3.0 | Catalog and profiles | Verified seed bearings; custom records and source fields; named print profiles; auto/manual overrides and persistence. |
 | 0.4.0 | Multiple seats and preview | Multi-selection; red invalid seats and reasons; wall warnings; breakout/overlap checks; safe commit/cancel. |
@@ -15,7 +15,7 @@ Versions are planned milestones, not implemented features or promised dates.
 
 ## Immediate next steps
 
-1. Receive and inspect `/Fusion-Add-In`.
-2. Verify current official Fusion APIs and resource requirements.
-3. Confirm a dimensioned side-relief prototype and edit architecture.
-4. Implement 0.1.0 foundation, then proceed through geometry milestones.
+1. Complete the [0.1.0 live Fusion acceptance checks](INSTALLATION.md) on Windows and macOS and record Fusion builds.
+2. Confirm a dimensioned side-relief prototype.
+3. Prototype supported Fusion geometry, persistence and edit APIs for 0.2.0.
+4. Implement one-seat geometry and persistent reopening/editing before expanding to later milestones.
