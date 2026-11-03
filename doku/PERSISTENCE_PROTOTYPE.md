@@ -14,6 +14,8 @@ Reference lookup uses `findEntityByToken`. A missing token or multiple matches r
 
 Since 0.1.3, snapshots reference the contour and direct cut feature; deleted validation tools are not persisted. The schema's feature map also remains able to read older snapshots containing a tool reference. Existing 0.1.2 seats are not rebuilt or migrated automatically.
 
+Version 0.1.6 snapshots include shaft mode, actual manual bore, allowance, blind depth, inner-ring clearance values and all added cut/sketch tokens. The bearing's unknown inner-ring outside dimension stays null; a clearance diameter is not a catalog bearing dimension.
+
 ## Remaining Fusion proof
 
 1. Create a single seat from confirmed contour A in a disposable parametric part design, with explicit mm/degrees conversion at the API boundary.

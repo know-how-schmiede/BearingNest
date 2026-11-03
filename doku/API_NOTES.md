@@ -14,23 +14,27 @@ The sketch normal is compared with the outward face normal (including `isParamRe
 
 Preview is opt-in. Its handler sets `isValidResult = False`, so execute rebuilds from the original model and writes the seat snapshot on the final cut. Execute errors set `executeFailed` and `executeFailedMessage` to abort the command transaction even though the template wrapper catches exceptions. The adapter also removes newly created features on failure, including preview failures. Live rollback and cleanup still require acceptance testing.
 
-The supported initial scope is one root-component solid body in a parametric design. Proxy/child-component placements are rejected. Multiple positions on one face share the same settings; unlimited position selection uses setSelectionLimits(1, 0). No shaft opening, inner-ring relief, chamfer, catalog, profile storage, red error graphics or thin-wall warnings are provided yet.
+The supported initial scope is one root-component solid body in a parametric design. Proxy/child-component placements are rejected. Multiple positions on one face share the same settings; unlimited position selection uses setSelectionLimits(1, 0). Version 0.1.6 adds optional shaft and inner-ring operations; chamfer, catalog, profile storage, red error graphics and thin-wall warnings remain pending.
 
 Generated contour sketches remain visible with areProfilesShown enabled through profile construction and the final cut, then are hidden using isVisible=False. Their profile calculation stays enabled for feature recomputation. On successful execute, selected point sketches also have only their profile fills disabled; their points, curves and visibility remain unchanged. Failed batches restore the original fill flags. Preview does not change source sketch fill preferences. Removing retained coplanar tools and disabling profile overlays addresses possible sources of the reported triangles; the exact cause has not been established from the screenshot alone. Existing seats are not rebuilt automatically.
 
-The 0.1.4 screenshot identifies a concrete profile-construction failure at position 1. Version 0.1.5 removes the premature profile/visibility suppression introduced in 0.1.3, restoring the 0.1.2 construction order. The profile regression substitute now depends on profile-display and deferred-compute state rather than always returning one profile. Actual kernel behavior and the resulting fix still require live verification.
+The 0.1.4 screenshot identifies a concrete profile-construction failure at position 1. Version 0.1.5 removes the premature profile/visibility suppression introduced in 0.1.3, restoring the 0.1.2 construction order. The profile regression substitute now depends on profile-display and deferred-compute state rather than always returning one profile. The owner confirmed preview and creation working in 0.1.5; the supplied screenshots are embedded in [the screenshot guide](SCREENSHOTS.md).
+
+## Optional clearances in 0.1.6
+
+Each shaft/inner-ring operation has a circular sketch with profiles enabled. Blind shaft depth starts at the selected face; inner-ring relief uses a signed OffsetStartDefinition at the seat floor. Each circle sketch independently resolves its inward normal. Through All uses ThroughAllExtentDefinition from the installed Autodesk SDK, with explicit participantBodies. Its finite validation envelope covers the projected body extent plus 1 mm and intentionally allows the shaft exit. Seat, blind shaft and inner-ring tools still require full containment and floor checks. Every tool participates in pairwise batch overlap checks before any cut. Unknown bearing inner-ring dimensions are not inferred from the manual relief diameter.
 
 ## Validation status
 
-In 0.1.4, validateInputs only sets areInputsValid; it no longer writes the status textbox or rechecks placement against temporary preview topology. Status updates run from inputChanged/preview/execute and skip unchanged text. Relevant edits and preview retries clear old errors; real placement/containment/overlap checks remain in the geometry path. This addresses the reported 0.1.3 ready-but-disabled state, but live confirmation of 0.1.4 remains pending.
+In 0.1.4, validateInputs only sets areInputsValid; it no longer writes the status textbox or rechecks placement against temporary preview topology. Status updates run from inputChanged/preview/execute and skip unchanged text. Relevant edits and preview retries clear old errors; real placement/containment/overlap checks remain in the geometry path. This was insufficient on its own: the later 0.1.5 construction-order change resolved the reported profile failure and was confirmed by the owner.
 
-43 automated tests pass, covering pure contour properties, parameter validation/conversion, menu registration, dialog callbacks, cleanup/error paths and snapshots. Tests use an isolated API substitute for Fusion calls. Python/API member checks were also performed against the installed SDK definitions.
+54 automated tests pass, covering pure contour properties, parameter validation/conversion, menu registration, dialog callbacks, cleanup/error paths and snapshots. Tests use an isolated API substitute for Fusion calls. Python/API member checks were also performed against the installed SDK definitions.
 
-The owner confirmed menu launch, version label, Solid > Create placement and single-seat creation in 0.1.2, while reporting triangular surface artifacts. The 0.1.3 batch and display changes have not yet been run in Fusion. Read-only UI inspection found a separate installed AddIns copy rather than the edited repository source. No installed files or user model were changed. macOS remains untested.
+The owner confirmed menu launch, version label, Solid > Create placement and working preview/creation in 0.1.5. Version 0.1.6 clearance geometry remains unverified in Fusion. Read-only UI inspection found a separate installed AddIns copy rather than the edited repository source. No installed files or user model were changed. macOS remains untested.
 
 ## Next proof
 
-Run the [manual geometry acceptance checks](INSTALLATION.md). Then implement shaft modes, inner-ring relief and chamfer, followed by snapshot-driven reopening and editing. The [persistence notes](PERSISTENCE_PROTOTYPE.md) distinguish saved metadata from proven editable geometry. Version 0.2.0 is still an incomplete milestone.
+Run the [manual geometry acceptance checks](INSTALLATION.md). Verify the new shaft/inner-ring operations using [the clearance guide](SHAFT_AND_RELIEF.md). Then implement chamfer, followed by snapshot-driven reopening and editing. The [persistence notes](PERSISTENCE_PROTOTYPE.md) distinguish saved metadata from proven editable geometry. Version 0.2.0 is still an incomplete milestone.
 
 ## Official references
 
@@ -42,6 +46,8 @@ Run the [manual geometry acceptance checks](INSTALLATION.md). Then implement sha
 - [Three-point sketch arcs and direction](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_SketchArcs_addByThreePoints.htm)
 - [Face orientation](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_BRepFace_isParamReversed.htm)
 - [One-sided extrusion](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_ExtrudeFeatureInput_setOneSideExtent.htm)
+- [Signed start offsets](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_OffsetStartDefinition_create.htm)
+- [Extrusion start extent](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_ExtrudeFeatureInput_startExtent.htm)
 - [Temporary boolean operations](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_TemporaryBRepManager_booleanOperation.htm)
 - [Explicit cut participant bodies](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_ExtrudeFeatureInput_participantBodies.htm)
 - [Sketch profile fill display](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Sketch_areProfilesShown.htm)

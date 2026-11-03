@@ -301,6 +301,39 @@ class FoundationTests(unittest.TestCase):
         self.assertTrue(valid.areInputsValid)
         self.assertFalse(args.isValidResult)
 
+    def test_optional_clearance_controls_follow_modes_outside_validation(self):
+        command, inputs, dialog = self.make_dialog()
+        self.assertFalse(dialog.fields['bore_mm'].isEnabled)
+        self.assertFalse(dialog.fields['inner_diameter_mm'].isEnabled)
+        dialog.fields['shaft_mode'].selectedItem.name = 'Blind'
+        dialog._refresh_controls()
+        self.assertTrue(dialog.fields['bore_mm'].isEnabled)
+        self.assertTrue(dialog.fields['blind_depth_mm'].isEnabled)
+        dialog.fields['inner_relief_enabled'].value = True
+        dialog._refresh_controls()
+        self.assertTrue(dialog.fields['inner_diameter_mm'].isEnabled)
+
+    def test_turning_shaft_off_ignores_inactive_relief_values_and_checked_preference(self):
+        command, inputs, dialog = self.make_dialog()
+        geometry = ModuleType('foundation.seat_geometry')
+        fusion = ModuleType('adsk.fusion')
+        fusion.Design = SimpleNamespace(cast=lambda value: value)
+        dialog.app.activeProduct = object()
+        for identity in ('seat_face', 'seat_position'):
+            dialog.fields[identity].selectionCount = 1
+            dialog.fields[identity].selection = lambda index: SimpleNamespace(entity=object())
+        dialog.fields['inner_relief_enabled'].value = True
+        dialog.fields['inner_diameter_mm'].isValidExpression = False
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry, 'adsk.fusion': fusion}), \
+                patch.object(sys.modules['adsk'], 'fusion', fusion, create=True):
+            parameters = dialog._request(check_placement=False)[-1]
+        self.assertEqual(parameters.shaft_mode, 'Off')
+        self.assertFalse(parameters.inner_relief_enabled)
+        dialog.fields['shaft_mode'].selectedItem.name = 'Through All'
+        dialog._refresh_controls()
+        self.assertFalse(dialog.fields['blind_depth_mm'].isEnabled)
+        self.assertTrue(dialog.fields['inner_diameter_mm'].isEnabled)
+
 
 if __name__ == '__main__':
     unittest.main()

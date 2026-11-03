@@ -3,9 +3,9 @@
     "type": "addin",
     "author": "Rene Triebenstein",
     "description": {
-        "": "Print-oriented ball bearing seats for Fusion - shared-parameter seat batches."
+        "": "Print-oriented ball bearing seats for Fusion - seat batches with shaft opening and inner-ring relief."
     },
-    "version": "0.1.5",
+    "version": "0.1.6",
     "runOnStartup": false,
     "supportedOS": "windows|mac",
     "editEnabled": true,

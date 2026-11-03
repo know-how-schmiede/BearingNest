@@ -46,3 +46,36 @@ class ParameterTests(unittest.TestCase):
             # All sector arcs are minor arcs; the midpoint lies between the intended endpoints.
             self.assertLess(math.dist(middle, segment.start), math.dist(segment.start, segment.end))
             self.assertLess(math.dist(middle, segment.end), math.dist(segment.start, segment.end))
+
+    def test_optional_clearances_preserve_original_defaults(self):
+        parameters = self.model.SeatParameters()
+        parameters.validate()
+        self.assertEqual(parameters.shaft_mode, 'Off')
+        self.assertFalse(parameters.inner_relief_enabled)
+        self.assertIsNone(parameters.snapshot_values()['shaft_diameter_mm'])
+
+    def test_blind_shaft_and_inner_relief_use_independent_depth_references(self):
+        parameters = self.model.SeatParameters(shaft_mode='Blind', axial_mm=0.5,
+            blind_depth_mm=10, inner_relief_enabled=True, inner_diameter_mm=12, inner_depth_mm=0.4)
+        parameters.validate()
+        self.assertAlmostEqual(parameters.shaft_diameter_mm, 8.2)
+        self.assertEqual(parameters.depth_mm, 7.5)
+        self.assertAlmostEqual(parameters.inner_bottom_mm, 7.9)
+        self.assertEqual(parameters.blind_depth_mm, 10)
+
+    def test_invalid_clearances_cannot_remove_the_support_or_end_above_the_relief(self):
+        invalid = ({'shaft_allowance_mm': 0}, {'bore_mm': 0}, {'shaft_allowance_mm': 20},
+            {'blind_depth_mm': 7}, {'inner_relief_enabled': True},
+            {'inner_relief_enabled': True, 'inner_diameter_mm': 8},
+            {'inner_relief_enabled': True, 'inner_diameter_mm': 21.9},
+            {'inner_relief_enabled': True, 'inner_diameter_mm': 12, 'inner_depth_mm': 0},
+            {'inner_relief_enabled': True, 'inner_diameter_mm': 12, 'blind_depth_mm': 7.3})
+        for values in invalid:
+            with self.assertRaises(ValueError):
+                self.model.SeatParameters(**dict({'shaft_mode': 'Blind'}, **values)).validate()
+        with self.assertRaises(ValueError):
+            self.model.SeatParameters(inner_relief_enabled=True, inner_diameter_mm=12).validate()
+
+    def test_through_all_ignores_inactive_blind_depth_but_keeps_manual_relief_validation(self):
+        self.model.SeatParameters(shaft_mode='Through All', blind_depth_mm=0,
+            inner_relief_enabled=True, inner_diameter_mm=12).validate()

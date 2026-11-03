@@ -20,6 +20,8 @@ During inspection on 2026-11-03, the running add-in referenced a separate copy a
 
 ## First geometry trial
 
+The owner confirmed preview and creation working in 0.1.5; the [four screenshots](SCREENSHOTS.md) record that baseline. For the new 0.1.6 optional shaft/inner-ring operations, follow the [clearance test guide](SHAFT_AND_RELIEF.md). Keep Shaft opening set to Off to repeat the seat-only trial below.
+
 Use a disposable design. These steps are an acceptance procedure, not a report of completed live testing.
 
 1. Create a parametric solid block, for example 60 × 60 × 20 mm, in the root component.
@@ -49,7 +51,7 @@ The owner confirmed single-seat creation in 0.1.2 but reported triangles on surr
 
 ## Profile regression in 0.1.5
 
-The owner reported Position 1: The seat sketch must contain exactly one closed profile in 0.1.4. Update the complete add-in folder to 0.1.5 and restart. Repeat one point, then three points with Preview enabled. Verify the preview appears, Create Seats stays enabled, and generated sketches are hidden after cutting. Profile calculation remains enabled on those sketches. If a profile error remains, record the added found-count value.
+The owner reported Position 1: The seat sketch must contain exactly one closed profile in 0.1.4. The owner confirmed this regression fixed in 0.1.5. Update the complete add-in folder to the current version and restart when repeating the test. Repeat one point, then three points with Preview enabled. Verify the preview appears, Create Seats stays enabled, and generated sketches are hidden after cutting. Profile calculation remains enabled on those sketches. If a profile error remains, record the added found-count value.
 
 ## Invalid placement and lifecycle checks
 

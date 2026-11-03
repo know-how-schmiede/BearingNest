@@ -70,6 +70,8 @@ class GeometryAdapterTests(unittest.TestCase):
         fusion.SketchPoint = type('SketchPoint', (), {})
         self.sketch_point_type = fusion.SketchPoint
         fusion.DistanceExtentDefinition = NS(create=lambda value: value)
+        fusion.OffsetStartDefinition = NS(create=lambda value: NS(offset=value))
+        fusion.ThroughAllExtentDefinition = NS(create=lambda: 'through-all')
         self.manager = NS(copy=Mock(return_value=NS(volume=2)))
         fusion.TemporaryBRepManager = NS(get=lambda: self.manager)
         self.modules = patch.dict(sys.modules, {'geometry_test': package,
@@ -206,6 +208,7 @@ class GeometryAdapterTests(unittest.TestCase):
             inputs.append(NS(setOneSideExtent=Mock(return_value=True)))
         self.design.rootComponent.sketches.addWithoutEdges.side_effect = sketches
         self.extrudes.createInput.side_effect = inputs
+        self.batch_inputs = inputs
         self.extrudes.add.side_effect = [*tools, *cuts]
         self.geometry.placement.side_effect = [(Point(index * 10, 0, 0), Vector()) for index in range(count)]
         return positions, source, sketches, tools, cuts
@@ -327,3 +330,69 @@ class GeometryAdapterTests(unittest.TestCase):
         self.geometry._check_overlap(manager, first, second)
         manager.copy.assert_not_called()
         manager.booleanOperation.assert_not_called()
+
+    def configure_clearance(self, mode='Blind'):
+        positions, source, sketches, tools, cuts = self.configure_batch(3)
+        self.geometry.placement.side_effect = [(Point(0, 0, 0), Vector())]
+        self.sketch.sketchCurves.sketchCircles = NS(addByCenterRadius=Mock(return_value=NS()))
+        self.face.body.boundingBox = NS(minPoint=Point(-3, -3, -2), maxPoint=Point(3, 3, 0))
+        self.parameters = self.parameters.__class__(shaft_mode=mode, inner_relief_enabled=True,
+            inner_diameter_mm=12, inner_depth_mm=0.4, axial_mm=0.5)
+        return positions[:1], source, sketches, tools, cuts
+
+    def test_blind_and_inner_relief_preflight_then_commit_correct_offsets_and_snapshot(self):
+        positions, source, sketches, tools, cuts = self.configure_clearance()
+        with patch.object(self.geometry, '_fully_contained') as contained, \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            result = self.geometry.create_seats(self.design, self.face, positions, self.parameters, persist=True)
+        self.assertEqual(contained.call_count, 3)
+        self.assertEqual(result, [cuts[0]])
+        self.assertTrue(all(not tool.isValid for tool in tools))
+        self.batch_inputs[1].setOneSideExtent.assert_called_once_with('12 mm', -1)
+        self.assertEqual(self.batch_inputs[2].startExtent.offset, '-7.5 mm')
+        self.assertEqual(self.batch_inputs[5].startExtent.offset, '-7.5 mm')
+        self.batch_inputs[5].setOneSideExtent.assert_called_once_with('0.4 mm', -1)
+        snapshot = save.call_args.args[1]
+        self.assertEqual(snapshot['bearing']['d_mm'], 8)
+        self.assertIsNone(snapshot['bearing']['inner_ring_outside_mm'])
+        self.assertEqual(snapshot['features']['shaft_cut'], 'cut1')
+        self.assertEqual(snapshot['features']['inner_ring_relief'], 'cut2')
+        self.assertAlmostEqual(self.sketch.sketchCurves.sketchCircles.addByCenterRadius.call_args_list[0].args[1], 0.41)
+        self.assertTrue(all(not sketch.isVisible and sketch.areProfilesShown for sketch in sketches))
+
+    def test_through_all_has_finite_preflight_but_native_through_all_final_cut(self):
+        positions, source, sketches, tools, cuts = self.configure_clearance('Through All')
+        with patch.object(self.geometry, '_fully_contained') as contained:
+            self.geometry.create_seats(self.design, self.face, positions, self.parameters, persist=False)
+        self.assertEqual(contained.call_count, 2)  # Shaft exit is intentional; seat and relief stay contained.
+        self.batch_inputs[1].setOneSideExtent.assert_called_once_with('21 mm', -1)
+        self.batch_inputs[4].setOneSideExtent.assert_called_once_with('through-all', -1)
+        self.assertEqual(self.batch_inputs[4].participantBodies, [self.result_body])
+
+    def test_inner_relief_breakout_rejects_every_operation_before_first_cut(self):
+        positions, source, sketches, tools, cuts = self.configure_clearance()
+        with patch.object(self.geometry, '_fully_contained', side_effect=[None, None, ValueError('relief breakout')]), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            with self.assertRaisesRegex(ValueError, 'relief breakout'):
+                self.geometry.create_seats(self.design, self.face, positions, self.parameters, persist=True)
+        self.assertEqual(self.extrudes.add.call_count, 3)
+        self.assertTrue(all(not tool.isValid and not sketch.isValid for tool, sketch in zip(tools, sketches)))
+        save.assert_not_called()
+
+    def test_failed_shaft_cut_removes_seat_cut_and_all_clearance_sketches(self):
+        positions, source, sketches, tools, cuts = self.configure_clearance()
+        self.extrudes.add.side_effect = [*tools, cuts[0], RuntimeError('shaft cut failed')]
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            with self.assertRaisesRegex(RuntimeError, 'shaft cut failed'):
+                self.geometry.create_seats(self.design, self.face, positions, self.parameters, persist=True)
+        self.assertFalse(cuts[0].isValid)
+        self.assertTrue(all(not sketch.isValid for sketch in sketches))
+        self.assertTrue(source.areProfilesShown)
+        save.assert_not_called()
+
+    def test_positive_direction_uses_positive_inner_relief_start_offset(self):
+        with patch.object(self.geometry.adsk.fusion.OffsetStartDefinition, 'create', wraps=lambda value: NS(offset=value)):
+            self.geometry._extrude(self.design, self.sketch, self.parameters, 1, 'new',
+                                   depth_mm=0.4, start_mm=7.5)
+        self.assertEqual(self.tool_input.startExtent.offset, '7.5 mm')

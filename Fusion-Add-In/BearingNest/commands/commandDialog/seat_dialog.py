@@ -10,6 +10,7 @@ class SeatDialog:
     def __init__(self, inputs, app):
         self.app = app
         self.fields = {}
+        self._refreshing = False
         self.geometry_error = None
         self._status_text = TEXT['selection_required']
         face = inputs.addSelectionInput('seat_face', TEXT['select_face'], TEXT['select_face_prompt'])
@@ -20,17 +21,33 @@ class SeatDialog:
             position.addSelectionFilter(selection_filter)
         position.setSelectionLimits(1, 0)
         self.fields.update(seat_face=face, seat_position=position)
-        for identity, label, units, expression in PARAMETER_FIELDS:
-            self.fields[identity] = inputs.addValueInput(identity, label, units,
-                                                        adsk.core.ValueInput.createByString(expression))
+        extra_fields = {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm',
+                        'inner_diameter_mm', 'inner_depth_mm'}
+        self._add_values(inputs, {field[0] for field in PARAMETER_FIELDS} - extra_fields)
         count = inputs.addDropDownCommandInput('land_count', TEXT['land_count'],
                                                adsk.core.DropDownStyles.TextListDropDownStyle)
         for value in (3, 5, 7, 9):
             count.listItems.add(str(value), value == 5, '')
         self.fields['land_count'] = count
+        mode = inputs.addDropDownCommandInput('shaft_mode', TEXT['shaft_mode'],
+                                              adsk.core.DropDownStyles.TextListDropDownStyle)
+        for name in ('Off', 'Through All', 'Blind'):
+            mode.listItems.add(name, name == 'Off', '')
+        self.fields['shaft_mode'] = mode
+        self._add_values(inputs, {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm'})
+        self.fields['inner_relief_enabled'] = inputs.addBoolValueInput(
+            'inner_relief_enabled', TEXT['inner_relief_enabled'], True, '', False)
+        self._add_values(inputs, {'inner_diameter_mm', 'inner_depth_mm'})
+        self._refresh_controls()
         self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', False)
         self.status = inputs.addTextBoxCommandInput('seat_status', '', TEXT['selection_required'], 3, True)
         self.status.isFullWidth = True
+
+    def _add_values(self, inputs, identities):
+        for identity, label, units, expression in PARAMETER_FIELDS:
+            if identity in identities:
+                self.fields[identity] = inputs.addValueInput(identity, label, units,
+                    adsk.core.ValueInput.createByString(expression))
 
     def _request(self, *, check_placement=True):
         from ... import seat_geometry
@@ -40,12 +57,19 @@ class SeatDialog:
         if face.selectionCount != 1 or position.selectionCount < 1:
             raise ValueError(TEXT['selection_required'])
         values = {}
+        defaults = SeatParameters()
         for identity, label, units, expression in PARAMETER_FIELDS:
             field = self.fields[identity]
             if not field.isValidExpression:
+                if not field.isEnabled:
+                    values[identity] = getattr(defaults, identity)
+                    continue
                 raise ValueError(f'{label}: invalid expression.')
             values[identity] = math.degrees(field.value) if units == 'deg' else field.value * 10.0
         values['land_count'] = int(self.fields['land_count'].selectedItem.name)
+        values['shaft_mode'] = self.fields['shaft_mode'].selectedItem.name
+        values['inner_relief_enabled'] = (values['shaft_mode'] != 'Off'
+                                          and self.fields['inner_relief_enabled'].value)
         parameters = SeatParameters(**values)
         parameters.validate()
         design = adsk.fusion.Design.cast(self.app.activeProduct)
@@ -67,10 +91,31 @@ class SeatDialog:
             self._status_text = text
             self.status.formattedText = text
 
+    def _refresh_controls(self):
+        if self._refreshing:
+            return
+        mode = self.fields['shaft_mode'].selectedItem.name
+        states = {}
+        for identity in ('bore_mm', 'shaft_allowance_mm'):
+            states[identity] = mode != 'Off'
+        states['blind_depth_mm'] = mode == 'Blind'
+        states['inner_relief_enabled'] = mode != 'Off'
+        enabled = mode != 'Off' and self.fields['inner_relief_enabled'].value
+        for identity in ('inner_diameter_mm', 'inner_depth_mm'):
+            states[identity] = enabled
+        self._refreshing = True
+        try:
+            for identity, enabled in states.items():
+                if getattr(self.fields[identity], 'isEnabled', None) != enabled:
+                    self.fields[identity].isEnabled = enabled
+        finally:
+            self._refreshing = False
+
     def changed(self, args):
-        if args.input.id not in self.fields:
+        if self._refreshing or args.input.id not in self.fields:
             return
         self.geometry_error = None
+        self._refresh_controls()
         try:
             request = self._request(check_placement=False)
             parameters = request[-1]

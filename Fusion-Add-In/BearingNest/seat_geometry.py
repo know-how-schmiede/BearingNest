@@ -68,11 +68,20 @@ def _fully_contained(manager, tool, target, inward):
             raise ValueError('The proposed seat breaks out of the body or intersects an existing void.')
 
 
-def _extrude(design, sketch, parameters, direction, operation, body=None):
+def _extrude(design, sketch, parameters, direction, operation, body=None, *,
+             depth_mm=None, start_mm=0.0, through_all=False):
     extrudes = design.rootComponent.features.extrudeFeatures
     feature_input = extrudes.createInput(sketch.profiles.item(0), operation)
-    extent = adsk.fusion.DistanceExtentDefinition.create(
-        adsk.core.ValueInput.createByString(f'{parameters.depth_mm:.12g} mm'))
+    if start_mm:
+        sign = -1 if direction == adsk.fusion.ExtentDirections.NegativeExtentDirection else 1
+        feature_input.startExtent = adsk.fusion.OffsetStartDefinition.create(
+            adsk.core.ValueInput.createByString(f'{sign * start_mm:.12g} mm'))
+    if through_all:
+        extent = adsk.fusion.ThroughAllExtentDefinition.create()
+    else:
+        distance = parameters.depth_mm if depth_mm is None else depth_mm
+        extent = adsk.fusion.DistanceExtentDefinition.create(
+            adsk.core.ValueInput.createByString(f'{distance:.12g} mm'))
     if not feature_input.setOneSideExtent(extent, direction):
         raise RuntimeError('Could not define the seat depth.')
     if body is not None:
@@ -121,15 +130,7 @@ def _prepare_seat(design, face, point, outward, parameters, created):
     profile_count = sketch.profiles.count
     if profile_count != 1:
         raise ValueError(f'The seat sketch must contain exactly one closed profile (found {profile_count}).')
-    origin = sketch.sketchToModelSpace(adsk.core.Point3D.create(0, 0, 0))
-    z_point = sketch.sketchToModelSpace(adsk.core.Point3D.create(0, 0, 1))
-    normal = origin.vectorTo(z_point)
-    normal.normalize()
-    alignment = normal.dotProduct(outward)
-    if abs(alignment) < 0.999:
-        raise ValueError('The sketch normal could not be matched to the selected face.')
-    direction = (adsk.fusion.ExtentDirections.NegativeExtentDirection if alignment > 0
-                 else adsk.fusion.ExtentDirections.PositiveExtentDirection)
+    direction = _inward_direction(sketch, outward)
     feature = _extrude(design, sketch, parameters, direction,
                        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     created.append(feature)
@@ -146,6 +147,86 @@ def _prepare_seat(design, face, point, outward, parameters, created):
     if envelope is None:
         raise RuntimeError('Could not retain the temporary overlap-check envelope.')
     return dict(sketch=sketch, tool_feature=feature, envelope=envelope, direction=direction)
+
+
+def _inward_direction(sketch, outward):
+    origin = sketch.sketchToModelSpace(adsk.core.Point3D.create(0, 0, 0))
+    z_point = sketch.sketchToModelSpace(adsk.core.Point3D.create(0, 0, 1))
+    normal = origin.vectorTo(z_point)
+    normal.normalize()
+    alignment = normal.dotProduct(outward)
+    if abs(alignment) < 0.999:
+        raise ValueError('The sketch normal could not be matched to the selected face.')
+    return (adsk.fusion.ExtentDirections.NegativeExtentDirection if alignment > 0
+            else adsk.fusion.ExtentDirections.PositiveExtentDirection)
+
+
+def _through_depth_mm(body, point, inward):
+    """Finite preflight tool covering the body; the final cut uses native Through All."""
+    box = body.boundingBox
+    maximum = max(point.vectorTo(adsk.core.Point3D.create(x, y, z)).dotProduct(inward)
+                  for x in (box.minPoint.x, box.maxPoint.x)
+                  for y in (box.minPoint.y, box.maxPoint.y)
+                  for z in (box.minPoint.z, box.maxPoint.z))
+    if maximum <= 0:
+        raise ValueError('No body material lies along the shaft direction.')
+    return maximum * 10.0 + 1.0
+
+
+def _prepare_round_cut(design, face, point, outward, parameters, created, *,
+                       kind, diameter_mm, depth_mm, start_mm, through_all):
+    sketch = design.rootComponent.sketches.addWithoutEdges(face)
+    if sketch is None:
+        raise RuntimeError('Could not create the circular clearance sketch.')
+    created.append(sketch)
+    sketch.name = f'BearingNest - {kind}'
+    sketch.areProfilesShown = True
+    sketch.isVisible = True
+    center = sketch.modelToSketchSpace(point)
+    center.z = 0
+    circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(center, mm_to_cm(diameter_mm / 2))
+    if circle is None:
+        raise RuntimeError('Could not create the clearance circle.')
+    circle.isFixed = True
+    if sketch.profiles.count != 1:
+        raise ValueError('The clearance sketch must contain one circular profile.')
+    direction = _inward_direction(sketch, outward)
+    inward = outward.copy()
+    inward.scaleBy(-1)
+    validation_depth = (_through_depth_mm(face.body, point, inward) if through_all else depth_mm)
+    feature = _extrude(design, sketch, parameters, direction,
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        depth_mm=validation_depth, start_mm=start_mm)
+    created.append(feature)
+    feature.name = f'BearingNest - {kind} validation tool'
+    if feature.bodies.count != 1:
+        raise ValueError('A clearance must create one solid validation tool.')
+    tool = feature.bodies.item(0)
+    tool.isVisible = False
+    manager = adsk.fusion.TemporaryBRepManager.get()
+    if not through_all:
+        _fully_contained(manager, tool, face.body, inward)
+    # Through All intentionally exits the target; its extrusion is scoped to that body.
+    envelope = manager.copy(tool)
+    if envelope is None:
+        raise RuntimeError('Could not retain a clearance validation envelope.')
+    return dict(kind=kind, sketch=sketch, tool_feature=feature, envelope=envelope,
+                depth_mm=depth_mm, start_mm=start_mm, through_all=through_all, direction=direction)
+
+
+def _prepare_extras(design, face, point, outward, parameters, created):
+    extras = []
+    if parameters.shaft_mode != 'Off':
+        extras.append(_prepare_round_cut(design, face, point, outward, parameters, created,
+            kind='shaft_cut', diameter_mm=parameters.shaft_diameter_mm,
+            depth_mm=parameters.blind_depth_mm, start_mm=0,
+            through_all=parameters.shaft_mode == 'Through All'))
+    if parameters.inner_relief_enabled:
+        extras.append(_prepare_round_cut(design, face, point, outward, parameters, created,
+            kind='inner_ring_relief', diameter_mm=parameters.inner_diameter_mm,
+            depth_mm=parameters.inner_depth_mm, start_mm=parameters.depth_mm,
+            through_all=False))
+    return extras
 
 
 def _check_overlap(manager, first, second):
@@ -202,9 +283,12 @@ def create_seats(design, face, positions, parameters, *, persist):
         for index, (point, outward, references) in enumerate(placements, 1):
             try:
                 item = _prepare_seat(design, face, point, outward, parameters, created)
+                item['extras'] = _prepare_extras(design, face, point, outward, parameters, created)
                 for previous_index, previous in enumerate(prepared, 1):
                     try:
-                        _check_overlap(manager, previous['envelope'], item['envelope'])
+                        for first in [previous, *previous['extras']]:
+                            for second in [item, *item['extras']]:
+                                _check_overlap(manager, first['envelope'], second['envelope'])
                     except Exception as error:
                         raise ValueError(f'Positions {previous_index} and {index}: {error}') from error
                 item['references'] = references
@@ -214,8 +298,9 @@ def create_seats(design, face, positions, parameters, *, persist):
 
         # Delete validation extrusions BEFORE direct cuts, avoiding retained coplanar tool faces.
         for item in reversed(prepared):
-            if not item['tool_feature'].deleteMe():
-                raise RuntimeError('Could not remove a validation tool; no seats were committed.')
+            for operation in reversed([item, *item['extras']]):
+                if not operation['tool_feature'].deleteMe():
+                    raise RuntimeError('Could not remove a validation tool; no seats were committed.')
         if persist:
             _hide_position_fills(positions, shading)
         body = face.body
@@ -229,16 +314,31 @@ def create_seats(design, face, positions, parameters, *, persist):
             body = cut.bodies.item(0)
             item['sketch'].isVisible = False
             item['sketch'].areProfilesShown = True
+            item['features'] = {'contour': item['sketch'].entityToken, 'seat_cut': cut.entityToken}
+            for operation in item['extras']:
+                clearance = _extrude(design, operation['sketch'], parameters, operation['direction'],
+                    adsk.fusion.FeatureOperations.CutFeatureOperation, body,
+                    depth_mm=operation['depth_mm'], start_mm=operation['start_mm'],
+                    through_all=operation['through_all'])
+                created.append(clearance)
+                clearance.name = f"BearingNest - {operation['kind']} {index}"
+                if clearance.bodies.count != 1:
+                    raise ValueError('A clearance cut must leave one resulting body.')
+                body = clearance.bodies.item(0)
+                operation['sketch'].isVisible = False
+                item['features'][operation['kind']] = clearance.entityToken
+                item['features'][operation['kind'] + '_sketch'] = operation['sketch'].entityToken
             cuts.append(cut)
 
         if persist:
             for cut, item in zip(cuts, prepared):
                 snapshot = seat_snapshot.create(parameters=parameters.snapshot_values(),
                     bearing={'D_mm': parameters.outside_mm, 'B_mm': parameters.width_mm,
-                             'd_mm': None, 'inner_ring_outside_mm': None, 'source': 'manual'},
+                             'd_mm': parameters.bore_mm if parameters.shaft_mode != 'Off' else None,
+                             'inner_ring_outside_mm': None, 'source': 'manual'},
                     profile={'name': 'Manual prototype values'}, auto_flags={},
                     references=item['references'],
-                    features={'contour': item['sketch'].entityToken, 'seat_cut': cut.entityToken})
+                    features=item['features'])
                 seat_storage.save(cut, snapshot)
         return cuts
     except Exception:

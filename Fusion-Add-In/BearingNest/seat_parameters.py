@@ -15,6 +15,21 @@ class SeatParameters:
     rotation_degrees: float = 0.0
     relief_mm: float = 1.2
     fillet_mm: float = 0.4
+    shaft_mode: str = 'Off'
+    bore_mm: float = 8.0
+    shaft_allowance_mm: float = 0.2
+    blind_depth_mm: float = 12.0
+    inner_relief_enabled: bool = False
+    inner_diameter_mm: float = 0.0
+    inner_depth_mm: float = 0.4
+
+    @property
+    def shaft_diameter_mm(self):
+        return self.bore_mm + self.shaft_allowance_mm
+
+    @property
+    def inner_bottom_mm(self):
+        return self.depth_mm + self.inner_depth_mm
 
     @property
     def contact_mm(self):
@@ -31,17 +46,36 @@ class SeatParameters:
 
     def validate(self):
         if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
-                   for v in asdict(self).values()):
+                   for key, v in asdict(self).items()
+                   if key not in ('shaft_mode', 'inner_relief_enabled')):
             raise ValueError('Seat dimensions must be finite numbers.')
         if self.outside_mm <= 0 or self.width_mm <= 0 or self.contact_mm <= 0 or self.depth_mm <= 0:
             raise ValueError('Bearing dimensions, contact diameter and seat depth must be positive.')
         if type(self.land_count) is not int:
             raise ValueError('Land count must be an integer.')
+        if self.shaft_mode not in ('Off', 'Through All', 'Blind'):
+            raise ValueError('Unknown shaft opening mode.')
+        if type(self.inner_relief_enabled) is not bool:
+            raise ValueError('Inner-ring relief mode must be Boolean.')
+        if self.shaft_mode != 'Off':
+            if self.bore_mm <= 0 or self.bore_mm >= self.outside_mm or self.shaft_allowance_mm <= 0:
+                raise ValueError('Enter a positive bearing bore below the outside diameter and a positive shaft allowance.')
+            if self.shaft_diameter_mm >= self.contact_mm:
+                raise ValueError('The shaft opening must be smaller than the contact diameter.')
+            required_bottom = self.inner_bottom_mm if self.inner_relief_enabled else self.depth_mm
+            if self.shaft_mode == 'Blind' and self.blind_depth_mm <= required_bottom:
+                raise ValueError('Blind shaft depth is measured from the selected face and must extend beyond the seat and inner-ring relief.')
+        if self.inner_relief_enabled:
+            if self.shaft_mode == 'Off':
+                raise ValueError('Enable a shaft opening before adding inner-ring relief.')
+            if not self.shaft_diameter_mm < self.inner_diameter_mm < self.contact_mm or self.inner_depth_mm <= 0:
+                raise ValueError('Enter a positive relief depth and a manual diameter between the shaft opening and contact diameters. Verify outer-ring support against the bearing drawing.')
         contour(self.contact_mm, self.land_count, self.land_degrees, self.relief_mm, self.fillet_mm)
 
     def snapshot_values(self):
         self.validate()
-        return dict(asdict(self), contact_mm=self.contact_mm, depth_mm=self.depth_mm)
+        return dict(asdict(self), contact_mm=self.contact_mm, depth_mm=self.depth_mm,
+                    shaft_diameter_mm=self.shaft_diameter_mm if self.shaft_mode != 'Off' else None)
 
 
 def mm_to_cm(value):

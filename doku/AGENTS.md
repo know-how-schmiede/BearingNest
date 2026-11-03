@@ -17,6 +17,9 @@
 - Develop the UI, identifiers, messages, comments and project documentation in English.
 - Introduce localization near completion. English is the source locale; German is a translation. Keep UI strings centralized now, without implementing the full translation system prematurely.
 - Keep bearing dimensions, manufacturing corrections and print-derived defaults separate.
+- For shaft openings, use d plus a positive diameter allowance; Blind depth is measured from the selected face. Inner-ring relief starts at the seat floor and requires a manual, drawing-based diameter when bearing data is unknown. Preserve unknown bearing values and never claim safe outer-ring support from diameter inequalities alone.
+- Include optional shaft/relief envelopes in batch preflight before any cut. Only a deliberate Through All shaft exit is exempt from closed-tool containment; final cuts must retain explicit participantBodies.
+- Keep owner-supplied screenshots embedded in the documentation with accurate version captions. The images under images/screenshots currently document the confirmed 0.1.5 baseline; do not present them as proof of newer clearance features.
 - Store a snapshot of each seat's values and bearing data with a schema version. Library/profile edits must not silently alter existing seats.
 - Support reopening and editing seats created by BearingNest. Prototype the persistence and edit strategy before building the complete geometry engine; use supported Fusion capabilities and document limitations.
 - Convert millimetres and degrees explicitly at the Fusion API boundary; do not assume API internal units.

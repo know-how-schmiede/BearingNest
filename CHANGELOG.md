@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.6 - 2026-11-03
+
+- Embed all four owner-supplied screenshots in documentation, labelled as the confirmed 0.1.5 baseline; add a preview image to the README.
+- Add optional Off / Through All / Blind shaft-opening modes with manual bore and positive diameter allowance. Blind depth is referenced to the selected face.
+- Add optional manual inner-ring clearance diameter/depth, starting at the seat floor. Do not infer unknown bearing dimensions or manufacturer-safe support limits.
+- Preflight clearance tools with the whole batch, check pairwise envelopes, remove validation extrusions before cutting, and persist clearance modes and feature references.
+- Keep feature-driving profiles enabled, scope every cut to the target body, and roll back the whole batch if a clearance operation fails.
+- Synchronize version.py, manifest, menu and README to 0.1.6. Chamfer and reopening/editing remain pending.
+
+Validation: 54 automated tests pass, including signed start offsets, native through-all extents, independent depth references and clearance failure cleanup. The owner confirmed 0.1.5 preview/creation; 0.1.6 clearance operations still need live verification.
+
 ## 0.1.5 - 2026-11-03
 
 - Address the concrete 0.1.4 preview error: Position 1 could not produce exactly one closed sketch profile.
