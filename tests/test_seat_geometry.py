@@ -71,7 +71,8 @@ class GeometryAdapterTests(unittest.TestCase):
         self.sketch_point_type = fusion.SketchPoint
         fusion.DistanceExtentDefinition = NS(create=lambda value: value)
         fusion.OffsetStartDefinition = NS(create=lambda value: NS(offset=value))
-        fusion.ThroughAllExtentDefinition = NS(create=lambda: 'through-all')
+        fusion.ThroughAllExtentDefinition = NS(create=lambda: NS(isPositiveDirection=True))
+        fusion.FeatureHealthStates = NS(HealthyFeatureHealthState=0)
         self.manager = NS(copy=Mock(return_value=NS(volume=2)))
         fusion.TemporaryBRepManager = NS(get=lambda: self.manager)
         self.modules = patch.dict(sys.modules, {'geometry_test': package,
@@ -82,7 +83,7 @@ class GeometryAdapterTests(unittest.TestCase):
         self.deleted = []
 
         def entity(name, **kwargs):
-            result = NS(isValid=True, entityToken=name, **kwargs)
+            result = NS(isValid=True, entityToken=name, healthState=0, errorOrWarningMessage='', **kwargs)
             def delete():
                 result.isValid = False
                 self.deleted.append(name)
@@ -100,7 +101,7 @@ class GeometryAdapterTests(unittest.TestCase):
         self.sketch.profiles = ComputedProfiles(self.sketch)
         self.tool_body = NS(volume=2)
         self.tool = entity('tool', bodies=NS(count=1, item=lambda index: self.tool_body))
-        self.result_body = NS(entityToken='result_body')
+        self.result_body = NS(entityToken='result_body', volume=9)
         self.cut = entity('cut', bodies=NS(count=1, item=lambda index: self.result_body))
         self.tool_input = NS(setOneSideExtent=Mock(return_value=True))
         self.cut_input = NS(setOneSideExtent=Mock(return_value=True))
@@ -108,7 +109,7 @@ class GeometryAdapterTests(unittest.TestCase):
                            add=Mock(side_effect=[self.tool, self.cut]))
         self.design = NS(rootComponent=NS(sketches=NS(addWithoutEdges=Mock(return_value=self.sketch)),
             features=NS(extrudeFeatures=self.extrudes)))
-        self.face = NS(body=NS(entityToken='body'), entityToken='face')
+        self.face = NS(body=NS(entityToken='body', volume=10), entityToken='face')
         self.position = NS(entityToken='point')
         self.placement = patch.object(self.geometry, 'placement', return_value=(Point(0, 0, 0), Vector()))
         self.placement.start()
@@ -199,7 +200,8 @@ class GeometryAdapterTests(unittest.TestCase):
             sketches[-1].isComputeDeferred = False
             sketches[-1].profiles = ComputedProfiles(sketches[-1])
             tools.append(self.entity(f'tool{index}', bodies=NS(count=1, item=lambda offset: self.tool_body)))
-            cuts.append(self.entity(f'cut{index}', bodies=NS(count=1, item=lambda offset: self.result_body)))
+            result = NS(entityToken=f'result{index}', volume=9-index)
+            cuts.append(self.entity(f'cut{index}', bodies=NS(count=1, item=lambda offset, result=result: result)))
             position = self.sketch_point_type()
             position.parentSketch = source
             position.entityToken = f'position{index}'
@@ -209,6 +211,7 @@ class GeometryAdapterTests(unittest.TestCase):
         self.design.rootComponent.sketches.addWithoutEdges.side_effect = sketches
         self.extrudes.createInput.side_effect = inputs
         self.batch_inputs = inputs
+        self.result_body = cuts[0].bodies.item(0)
         self.extrudes.add.side_effect = [*tools, *cuts]
         self.geometry.placement.side_effect = [(Point(index * 10, 0, 0), Vector()) for index in range(count)]
         return positions, source, sketches, tools, cuts
@@ -366,7 +369,9 @@ class GeometryAdapterTests(unittest.TestCase):
             self.geometry.create_seats(self.design, self.face, positions, self.parameters, persist=False)
         self.assertEqual(contained.call_count, 2)  # Shaft exit is intentional; seat and relief stay contained.
         self.batch_inputs[1].setOneSideExtent.assert_called_once_with('21 mm', -1)
-        self.batch_inputs[4].setOneSideExtent.assert_called_once_with('through-all', -1)
+        extent, direction = self.batch_inputs[4].setOneSideExtent.call_args.args
+        self.assertFalse(extent.isPositiveDirection)
+        self.assertEqual(direction, -1)
         self.assertEqual(self.batch_inputs[4].participantBodies, [self.result_body])
 
     def test_inner_relief_breakout_rejects_every_operation_before_first_cut(self):
@@ -396,3 +401,38 @@ class GeometryAdapterTests(unittest.TestCase):
             self.geometry._extrude(self.design, self.sketch, self.parameters, 1, 'new',
                                    depth_mm=0.4, start_mm=7.5)
         self.assertEqual(self.tool_input.startExtent.offset, '7.5 mm')
+
+    def test_native_through_all_explicitly_sets_its_own_positive_direction(self):
+        self.geometry._extrude(self.design, self.sketch, self.parameters, 1, 'new', through_all=True)
+        extent, direction = self.tool_input.setOneSideExtent.call_args.args
+        self.assertTrue(extent.isPositiveDirection)
+        self.assertEqual(direction, 1)
+
+    def test_healthy_but_ineffective_cut_is_deleted_and_rejected(self):
+        self.result_body.volume = self.face.body.volume
+        self.extrudes.add.side_effect = [self.cut]
+        with self.assertRaisesRegex(ValueError, 'removed no material'):
+            self.geometry._extrude(self.design, self.sketch, self.parameters, -1, 'cut', self.face.body)
+        self.assertFalse(self.cut.isValid)
+        self.assertEqual(self.deleted, ['cut'])
+
+    def test_warning_feature_is_deleted_before_it_can_be_reported_as_valid(self):
+        self.cut.healthState = 1
+        self.cut.errorOrWarningMessage = 'No target material was cut'
+        self.extrudes.add.side_effect = [self.cut]
+        with self.assertRaisesRegex(RuntimeError, 'No target material'):
+            self.geometry._extrude(self.design, self.sketch, self.parameters, -1, 'cut', self.face.body)
+        self.assertFalse(self.cut.isValid)
+
+    def test_shaft_warning_removes_prior_seat_cut_and_restores_source_display(self):
+        positions, source, sketches, tools, cuts = self.configure_clearance('Through All')
+        cuts[1].healthState = 1
+        cuts[1].errorOrWarningMessage = 'Shaft direction misses body'
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            with self.assertRaisesRegex(RuntimeError, 'Shaft direction misses body'):
+                self.geometry.create_seats(self.design, self.face, positions, self.parameters, persist=True)
+        self.assertFalse(cuts[0].isValid)
+        self.assertFalse(cuts[1].isValid)
+        self.assertTrue(source.areProfilesShown)
+        save.assert_not_called()

@@ -79,3 +79,12 @@ class ParameterTests(unittest.TestCase):
     def test_through_all_ignores_inactive_blind_depth_but_keeps_manual_relief_validation(self):
         self.model.SeatParameters(shaft_mode='Through All', blind_depth_mm=0,
             inner_relief_enabled=True, inner_diameter_mm=12).validate()
+
+    def test_missing_manual_inner_diameter_reports_current_value_and_effective_bounds(self):
+        with self.assertRaises(ValueError) as raised:
+            self.model.SeatParameters(shaft_mode='Through All', shaft_allowance_mm=0.5,
+                                      inner_relief_enabled=True).validate()
+        message = str(raised.exception)
+        self.assertIn('8.500 mm', message)
+        self.assertIn('21.900 mm', message)
+        self.assertIn('Current value: 0.000 mm', message)

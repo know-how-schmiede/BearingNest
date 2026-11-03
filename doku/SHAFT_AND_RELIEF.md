@@ -1,6 +1,6 @@
 # Shaft opening and inner-ring relief
 
-Implemented for local testing in **0.1.6**. The owner confirmed the underlying 0.1.5 seat preview and creation; the new clearance operations still require live Fusion checks. See the [0.1.5 screenshots](SCREENSHOTS.md) for that confirmed baseline.
+Implemented in 0.1.6, with a **0.1.7 correction awaiting live confirmation**. The owner reported that the 0.1.6 Through All preview showed no shaft opening. Version 0.1.7 sets the extent's own direction flag and rejects warning/error or no-material-removal features. See the [0.1.5 screenshots](SCREENSHOTS.md) for the confirmed seat baseline.
 
 ## Controls
 
@@ -30,6 +30,8 @@ Use a disposable 60 x 60 x 20 mm root-component solid with a top-face center poi
 
 The relief diameter must exceed the shaft opening diameter and remain below the contact diameter; its depth must be positive. These inequalities ensure geometric nesting, not safe manufacturer-specific outer-ring support or seal clearance. Unknown inner-ring outside dimensions remain unknown in the bearing snapshot.
 
+Enabling Inner-ring relief while its manual diameter is still 0 mm correctly disables creation; enter a drawing-based value first. With the owner's reported bore 8 mm, allowance 0.5 mm and contact diameter 21.9 mm, the geometric interval is strictly greater than 8.5 mm and less than 21.9 mm. This interval does not prescribe a manufacturer-safe relief diameter. The current error text displays both limits and the entered value.
+
 For Blind mode, the shaft pocket must extend deeper than the seat and any enabled inner-ring relief. An equal or shallower depth is rejected. Through All ignores the inactive blind-depth field and uses Fusion's native through-all extent on the selected body.
 
 ## Geometry and preflight
@@ -44,7 +46,7 @@ Pairwise batch checks include every seat/shaft/relief envelope. All validation e
 
 1. Test Off: the confirmed seat-only geometry remains unchanged.
 2. Test Blind with the example above. Measure the opening diameter, face-referenced blind depth, floor-referenced relief depth and support annulus.
-3. Test Through All: check the shaft exits the selected body and no neighboring body is cut.
+3. Test Through All in 0.1.7: check the shaft exits the selected body and no neighboring body is cut. Repeat with both sketch-normal orientations; a missing shaft must produce an error rather than a valid preview. If an error remains, record its complete Fusion warning/error text.
 4. Repeat on a bottom-facing and inclined face to verify the offset direction.
 5. Try an unknown/zero relief diameter, a relief smaller than the shaft, insufficient support geometry and a blind depth ending above the relief. Each invalid batch must be rejected without partial cuts.
 6. Preview multiple positions, change modes and dimensions, cancel, then create. Verify no validation tools remain and undo removes the whole batch in one step.

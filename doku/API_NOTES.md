@@ -26,9 +26,11 @@ Each shaft/inner-ring operation has a circular sketch with profiles enabled. Bli
 
 ## Validation status
 
+The 0.1.6 owner report shows a Through All preview without a shaft opening. In 0.1.7, the ThroughAllExtentDefinition's own isPositiveDirection property is explicitly set to agree with setOneSideExtent. The property was checked against the installed Autodesk Python SDK. Returned features are checked for healthy status, and every cut must reduce target-body volume. A failed feature is deleted inside the extrusion helper before the batch cleanup handles previously created geometry. These checks prevent a warning/no-op extrusion from being reported as a valid preview. Live 0.1.7 confirmation is pending.
+
 In 0.1.4, validateInputs only sets areInputsValid; it no longer writes the status textbox or rechecks placement against temporary preview topology. Status updates run from inputChanged/preview/execute and skip unchanged text. Relevant edits and preview retries clear old errors; real placement/containment/overlap checks remain in the geometry path. This was insufficient on its own: the later 0.1.5 construction-order change resolved the reported profile failure and was confirmed by the owner.
 
-54 automated tests pass, covering pure contour properties, parameter validation/conversion, menu registration, dialog callbacks, cleanup/error paths and snapshots. Tests use an isolated API substitute for Fusion calls. Python/API member checks were also performed against the installed SDK definitions.
+59 automated tests pass, covering pure contour properties, parameter validation/conversion, menu registration, dialog callbacks, cleanup/error paths and snapshots. Tests use an isolated API substitute for Fusion calls. Python/API member checks were also performed against the installed SDK definitions.
 
 The owner confirmed menu launch, version label, Solid > Create placement and working preview/creation in 0.1.5. Version 0.1.6 clearance geometry remains unverified in Fusion. Read-only UI inspection found a separate installed AddIns copy rather than the edited repository source. No installed files or user model were changed. macOS remains untested.
 

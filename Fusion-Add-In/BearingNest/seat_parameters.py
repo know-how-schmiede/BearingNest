@@ -68,8 +68,12 @@ class SeatParameters:
         if self.inner_relief_enabled:
             if self.shaft_mode == 'Off':
                 raise ValueError('Enable a shaft opening before adding inner-ring relief.')
-            if not self.shaft_diameter_mm < self.inner_diameter_mm < self.contact_mm or self.inner_depth_mm <= 0:
-                raise ValueError('Enter a positive relief depth and a manual diameter between the shaft opening and contact diameters. Verify outer-ring support against the bearing drawing.')
+            if not self.shaft_diameter_mm < self.inner_diameter_mm < self.contact_mm:
+                raise ValueError(f'Enter Inner-ring relief diameter (manual) from the bearing drawing: '
+                    f'greater than {self.shaft_diameter_mm:.3f} mm and less than {self.contact_mm:.3f} mm. '
+                    f'Current value: {self.inner_diameter_mm:.3f} mm. Verify outer-ring support.')
+            if self.inner_depth_mm <= 0:
+                raise ValueError('Inner-ring relief depth from the seat floor must be positive.')
         contour(self.contact_mm, self.land_count, self.land_degrees, self.relief_mm, self.fillet_mm)
 
     def snapshot_values(self):

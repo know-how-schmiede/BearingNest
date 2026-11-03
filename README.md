@@ -2,7 +2,7 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.1.6** · Status: multi-position prototype with optional shaft opening and inner-ring relief; new clearances await live verification.
+Version: **0.1.7** · Status: multi-position prototype with optional shaft opening and inner-ring relief; shaft direction correction awaiting live confirmation.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
@@ -28,7 +28,7 @@ The prototype supports a single solid body in the root component of a parametric
 
 Use the complete [BearingNest add-in folder](Fusion-Add-In/BearingNest). If Fusion loads a copy from its AddIns directory, update that entire copy before restarting the add-in. Restarting alone does not copy repository changes.
 
-Follow the [installation and test guide](doku/INSTALLATION.md), including the [new clearance tests](doku/SHAFT_AND_RELIEF.md), on a disposable design. Preview and creation were confirmed in 0.1.5 after fixing premature profile suppression. The 0.1.6 optional shaft and inner-ring operations have isolated automated coverage but still require live Fusion verification.
+Follow the [installation and test guide](doku/INSTALLATION.md), including the [new clearance tests](doku/SHAFT_AND_RELIEF.md), on a disposable design. Preview and creation were confirmed in 0.1.5 after fixing premature profile suppression. The owner reported a missing Through All shaft in 0.1.6. Version 0.1.7 explicitly sets its direction and rejects warning/no-op cuts; live confirmation is pending. Inner-ring relief requires a nonzero drawing-based manual diameter.
 
 Target environments are Autodesk Fusion on Windows and macOS with Fusion's bundled Python. No third-party Python packages are required. The owner confirmed command launch and Solid > Create placement on Windows in an earlier version. The new clearance operations and macOS remain unverified.
 

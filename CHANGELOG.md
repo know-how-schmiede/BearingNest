@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.7 - 2026-11-03
+
+- Explicitly set ThroughAllExtentDefinition.isPositiveDirection as well as the one-sided extent direction, using the profile sketch normal.
+- Reject warning/error extrusions and cuts with no measurable material removal. Remove a failed feature before propagating the error so previews cannot report a no-op shaft as valid and the whole batch can roll back.
+- Replace the generic inner-ring validation message with the current diameter and actual shaft/contact limits. A zero manual diameter remains invalid; no bearing dimension is fabricated.
+- Synchronize version.py, manifest, menu and README to 0.1.7.
+
+Validation: 59 automated tests pass, including both through-all directions, no-op/warning rejection, shaft-failure rollback and the reported 8.5/21.9 mm inner-ring bounds. The owner reported the missing shaft in 0.1.6; the 0.1.7 fix still needs live confirmation.
+
 ## 0.1.6 - 2026-11-03
 
 - Embed all four owner-supplied screenshots in documentation, labelled as the confirmed 0.1.5 baseline; add a preview image to the README.

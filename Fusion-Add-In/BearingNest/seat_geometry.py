@@ -78,6 +78,8 @@ def _extrude(design, sketch, parameters, direction, operation, body=None, *,
             adsk.core.ValueInput.createByString(f'{sign * start_mm:.12g} mm'))
     if through_all:
         extent = adsk.fusion.ThroughAllExtentDefinition.create()
+        # A single-sided ThroughAllExtentDefinition has its own direction flag.
+        extent.isPositiveDirection = direction == adsk.fusion.ExtentDirections.PositiveExtentDirection
     else:
         distance = parameters.depth_mm if depth_mm is None else depth_mm
         extent = adsk.fusion.DistanceExtentDefinition.create(
@@ -86,9 +88,27 @@ def _extrude(design, sketch, parameters, direction, operation, body=None, *,
         raise RuntimeError('Could not define the seat depth.')
     if body is not None:
         feature_input.participantBodies = [body]
+    before_volume = body.volume if body is not None else None
     feature = extrudes.add(feature_input)
     if feature is None:
         raise RuntimeError('Could not extrude the bearing seat.')
+    try:
+        if feature.healthState != adsk.fusion.FeatureHealthStates.HealthyFeatureHealthState:
+            detail = feature.errorOrWarningMessage or 'The extrusion is not healthy.'
+            raise RuntimeError(f'Fusion extrusion failed: {detail}')
+        if body is not None:
+            if feature.bodies.count != 1:
+                raise ValueError('The cut must leave one resulting body.')
+            after_volume = feature.bodies.item(0).volume
+            if not all(math.isfinite(value) for value in (before_volume, after_volume)):
+                raise ValueError('The cut volume could not be verified.')
+            if before_volume - after_volume <= max(1e-9, before_volume * 1e-10):
+                raise ValueError('The cut removed no material. Check its direction, start plane and target body.')
+    except Exception:
+        # Callers cannot yet own a feature that failed inside this helper.
+        if feature.isValid and not feature.deleteMe():
+            raise RuntimeError('Could not clean up the failed extrusion; cancel the command.')
+        raise
     return feature
 
 
