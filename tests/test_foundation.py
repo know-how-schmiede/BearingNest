@@ -31,6 +31,26 @@ class Items:
         return self.add(definition.id)
 
 
+class ValueField:
+    def __init__(self, identity, units, expression):
+        self.id, self.units, self.isEnabled = identity, units, True
+        self.expression = expression
+
+    @property
+    def expression(self):
+        return self._expression
+
+    @expression.setter
+    def expression(self, expression):
+        self._expression = expression
+        try:
+            number = float(expression.split()[0])
+            self.value = math.radians(number) if self.units == 'deg' else number / 10
+            self.isValidExpression = True
+        except ValueError:
+            self.isValidExpression = False
+
+
 class Inputs:
     def __init__(self):
         self.tabs = []
@@ -59,9 +79,7 @@ class Inputs:
         return field
 
     def addValueInput(self, identity, label, units, expression):
-        number = float(expression.split()[0])
-        value = math.radians(number) if units == 'deg' else number / 10
-        field = SimpleNamespace(id=identity, value=value, isValidExpression=True)
+        field = ValueField(identity, units, expression)
         self.fields.append(field)
         return field
 
@@ -333,6 +351,44 @@ class FoundationTests(unittest.TestCase):
         dialog._refresh_controls()
         self.assertFalse(dialog.fields['blind_depth_mm'].isEnabled)
         self.assertTrue(dialog.fields['inner_diameter_mm'].isEnabled)
+
+    def test_inner_diameter_follows_bore_until_manual_override(self):
+        command, inputs, dialog = self.make_dialog()
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 0.8)
+        dialog.fields['bore_mm'].expression = '10 mm'
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='bore_mm')))
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 1.0)
+        dialog.fields['inner_diameter_mm'].expression = '12 mm'
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='inner_diameter_mm')))
+        dialog.fields['bore_mm'].expression = '11 mm'
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='bore_mm')))
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 1.2)
+
+    def test_face_selection_moves_focus_to_positions_without_later_focus_theft(self):
+        command, inputs, dialog = self.make_dialog()
+        dialog.fields['seat_face'].selectionCount = 1
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='seat_face')))
+        self.assertTrue(dialog.fields['seat_position'].hasFocus)
+        dialog.fields['seat_position'].hasFocus = False
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='outside_mm')))
+        self.assertFalse(dialog.fields['seat_position'].hasFocus)
+
+    def test_hidden_position_selector_is_not_focused(self):
+        command, inputs, dialog = self.make_dialog()
+        dialog.fields['seat_face'].selectionCount = 1
+        dialog.fields['seat_position'].isVisible = False
+        dialog.fields['seat_position'].hasFocus = False
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='seat_face')))
+        self.assertFalse(dialog.fields['seat_position'].hasFocus)
+
+    def test_delayed_auto_fill_change_event_does_not_turn_the_preset_into_manual_override(self):
+        command, inputs, dialog = self.make_dialog()
+        dialog.fields['bore_mm'].expression = '10 mm'
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='bore_mm')))
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='inner_diameter_mm')))
+        dialog.fields['bore_mm'].expression = '11 mm'
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='bore_mm')))
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 1.1)
 
 
 if __name__ == '__main__':

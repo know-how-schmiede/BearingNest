@@ -22,6 +22,7 @@ TEXT = {
     'preview': 'Preview',
     'shaft_mode': 'Shaft opening',
     'inner_relief_enabled': 'Inner-ring relief',
+    'inner_relief_pending': 'Bore preset: no additional inner-ring cut. Enter a larger drawing-based diameter for relief; seat and shaft remain previewable.',
     'create_seat': 'Create Seats',
     'selection_required': 'Select one planar face and at least one seat position.',
     'design_required': 'Open a parametric Fusion design before creating a seat.',
@@ -42,6 +43,6 @@ PARAMETER_FIELDS = (
     ('bore_mm', 'Bearing bore (manual)', 'mm', '8 mm'),
     ('shaft_allowance_mm', 'Shaft diameter allowance', 'mm', '0.2 mm'),
     ('blind_depth_mm', 'Blind shaft depth from face', 'mm', '12 mm'),
-    ('inner_diameter_mm', 'Inner-ring relief diameter (manual)', 'mm', '0 mm'),
+    ('inner_diameter_mm', 'Inner-ring relief diameter (manual)', 'mm', '8 mm'),
     ('inner_depth_mm', 'Inner-ring relief depth from seat floor', 'mm', '0.4 mm'),
 )

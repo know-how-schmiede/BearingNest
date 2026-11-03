@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8 - 2026-11-03
+
+- Prefill Inner-ring relief diameter from Bearing bore, follow bore changes until a manual override, and preserve manually entered diameters.
+- Treat the bore-equal value as a pending preset: preview/create the seat and shaft without an ineffective extra relief cut, show an explicit status message and store pending/applied state in the snapshot. Actual relief retains the validated drawing-based diameter limits.
+- Move selection focus from the chosen face to Seat positions without stealing focus on parameter edits.
+- Synchronize version.py, manifest, menu and README to 0.1.8.
+
+Validation: 66 automated tests pass, including preset updates, manual override preservation, delayed input events, pending-state geometry and selection focus. The owner confirmed shaft opening and inner-ring relief in 0.1.7; the new UI behavior needs live confirmation.
+
 ## 0.1.7 - 2026-11-03
 
 - Explicitly set ThroughAllExtentDefinition.isPositiveDirection as well as the one-sided extent direction, using the profile sketch normal.

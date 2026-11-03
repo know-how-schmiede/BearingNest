@@ -55,6 +55,8 @@ The owner reported Position 1: The seat sketch must contain exactly one closed p
 
 ## Invalid placement and lifecycle checks
 
+- For 0.1.8, verify face-to-position focus transfer and the bore-prefilled inner-ring pending state using the [clearance guide](SHAFT_AND_RELIEF.md). The bore preset must allow the seat/shaft preview without creating a separate relief cut.
+
 - Dialog regression for 0.1.4: select a face and valid points with Preview off. Create Seats must enable. Enable Preview and verify the cuts appear and creation remains enabled. Disable Preview and check that the preview rolls back without disabling creation. Trigger an invalid placement, correct it, and verify recovery. No status-text updates may occur inside validateInputs.
 
 - Try a position near the edge, insufficient material depth and a pre-existing void. The preview/creation must report an error without leaving partial geometry.

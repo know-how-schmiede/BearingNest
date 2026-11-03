@@ -241,7 +241,7 @@ def _prepare_extras(design, face, point, outward, parameters, created):
             kind='shaft_cut', diameter_mm=parameters.shaft_diameter_mm,
             depth_mm=parameters.blind_depth_mm, start_mm=0,
             through_all=parameters.shaft_mode == 'Through All'))
-    if parameters.inner_relief_enabled:
+    if parameters.has_inner_relief:
         extras.append(_prepare_round_cut(design, face, point, outward, parameters, created,
             kind='inner_ring_relief', diameter_mm=parameters.inner_diameter_mm,
             depth_mm=parameters.inner_depth_mm, start_mm=parameters.depth_mm,

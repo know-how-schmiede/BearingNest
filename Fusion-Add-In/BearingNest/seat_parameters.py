@@ -20,7 +20,7 @@ class SeatParameters:
     shaft_allowance_mm: float = 0.2
     blind_depth_mm: float = 12.0
     inner_relief_enabled: bool = False
-    inner_diameter_mm: float = 0.0
+    inner_diameter_mm: float = 8.0
     inner_depth_mm: float = 0.4
 
     @property
@@ -30,6 +30,15 @@ class SeatParameters:
     @property
     def inner_bottom_mm(self):
         return self.depth_mm + self.inner_depth_mm
+
+    @property
+    def inner_relief_pending(self):
+        return self.inner_relief_enabled and math.isclose(
+            self.inner_diameter_mm, self.bore_mm, rel_tol=0, abs_tol=1e-9)
+
+    @property
+    def has_inner_relief(self):
+        return self.inner_relief_enabled and not self.inner_relief_pending
 
     @property
     def contact_mm(self):
@@ -62,13 +71,13 @@ class SeatParameters:
                 raise ValueError('Enter a positive bearing bore below the outside diameter and a positive shaft allowance.')
             if self.shaft_diameter_mm >= self.contact_mm:
                 raise ValueError('The shaft opening must be smaller than the contact diameter.')
-            required_bottom = self.inner_bottom_mm if self.inner_relief_enabled else self.depth_mm
+            required_bottom = self.inner_bottom_mm if self.has_inner_relief else self.depth_mm
             if self.shaft_mode == 'Blind' and self.blind_depth_mm <= required_bottom:
                 raise ValueError('Blind shaft depth is measured from the selected face and must extend beyond the seat and inner-ring relief.')
         if self.inner_relief_enabled:
             if self.shaft_mode == 'Off':
                 raise ValueError('Enable a shaft opening before adding inner-ring relief.')
-            if not self.shaft_diameter_mm < self.inner_diameter_mm < self.contact_mm:
+            if not self.inner_relief_pending and not self.shaft_diameter_mm < self.inner_diameter_mm < self.contact_mm:
                 raise ValueError(f'Enter Inner-ring relief diameter (manual) from the bearing drawing: '
                     f'greater than {self.shaft_diameter_mm:.3f} mm and less than {self.contact_mm:.3f} mm. '
                     f'Current value: {self.inner_diameter_mm:.3f} mm. Verify outer-ring support.')
@@ -79,7 +88,8 @@ class SeatParameters:
     def snapshot_values(self):
         self.validate()
         return dict(asdict(self), contact_mm=self.contact_mm, depth_mm=self.depth_mm,
-                    shaft_diameter_mm=self.shaft_diameter_mm if self.shaft_mode != 'Off' else None)
+                    shaft_diameter_mm=self.shaft_diameter_mm if self.shaft_mode != 'Off' else None,
+                    inner_relief_pending=self.inner_relief_pending, inner_relief_applied=self.has_inner_relief)
 
 
 def mm_to_cm(value):

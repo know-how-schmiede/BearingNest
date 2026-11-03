@@ -436,3 +436,11 @@ class GeometryAdapterTests(unittest.TestCase):
         self.assertFalse(cuts[1].isValid)
         self.assertTrue(source.areProfilesShown)
         save.assert_not_called()
+
+    def test_bore_preset_does_not_attempt_a_no_op_inner_ring_cut(self):
+        parameters = self.parameters.__class__(shaft_mode='Through All', inner_relief_enabled=True)
+        with patch.object(self.geometry, '_prepare_round_cut', return_value='shaft') as prepare:
+            operations = self.geometry._prepare_extras(self.design, self.face, Point(0, 0, 0),
+                                                       Vector(), parameters, [])
+        self.assertEqual(operations, ['shaft'])
+        self.assertEqual(prepare.call_args.kwargs['kind'], 'shaft_cut')

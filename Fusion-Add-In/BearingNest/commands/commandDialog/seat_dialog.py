@@ -11,6 +11,8 @@ class SeatDialog:
         self.app = app
         self.fields = {}
         self._refreshing = False
+        self._inner_diameter_auto = True
+        self._last_auto_inner_value = None
         self.geometry_error = None
         self._status_text = TEXT['selection_required']
         face = inputs.addSelectionInput('seat_face', TEXT['select_face'], TEXT['select_face_prompt'])
@@ -38,9 +40,10 @@ class SeatDialog:
         self.fields['inner_relief_enabled'] = inputs.addBoolValueInput(
             'inner_relief_enabled', TEXT['inner_relief_enabled'], True, '', False)
         self._add_values(inputs, {'inner_diameter_mm', 'inner_depth_mm'})
+        self._sync_inner_diameter()
         self._refresh_controls()
         self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', False)
-        self.status = inputs.addTextBoxCommandInput('seat_status', '', TEXT['selection_required'], 3, True)
+        self.status = inputs.addTextBoxCommandInput('seat_status', '', TEXT['selection_required'], 4, True)
         self.status.isFullWidth = True
 
     def _add_values(self, inputs, identities):
@@ -111,16 +114,47 @@ class SeatDialog:
         finally:
             self._refreshing = False
 
+    def _sync_inner_diameter(self):
+        if not self._inner_diameter_auto:
+            return
+        bore, diameter = self.fields['bore_mm'], self.fields['inner_diameter_mm']
+        if not bore.isValidExpression or bore.value <= 0:
+            return
+        self._last_auto_inner_value = bore.value
+        if not diameter.isValidExpression or not math.isclose(diameter.value, bore.value, rel_tol=0, abs_tol=1e-10):
+            self._refreshing = True
+            try:
+                diameter.expression = f'{bore.value * 10:.12g} mm'
+            finally:
+                self._refreshing = False
+
     def changed(self, args):
         if self._refreshing or args.input.id not in self.fields:
             return
         self.geometry_error = None
+        if args.input.id == 'inner_diameter_mm':
+            diameter = self.fields['inner_diameter_mm']
+            if (not diameter.isValidExpression or self._last_auto_inner_value is None
+                    or not math.isclose(diameter.value, self._last_auto_inner_value, rel_tol=0, abs_tol=1e-10)):
+                self._inner_diameter_auto = False
+        if args.input.id in ('bore_mm', 'inner_relief_enabled', 'shaft_mode'):
+            self._sync_inner_diameter()
+        if (args.input.id == 'seat_face' and self.fields['seat_face'].selectionCount == 1
+                and getattr(self.fields['seat_position'], 'isVisible', True)):
+            self._refreshing = True
+            try:
+                self.fields['seat_position'].hasFocus = True
+            finally:
+                self._refreshing = False
         self._refresh_controls()
         try:
             request = self._request(check_placement=False)
             parameters = request[-1]
-            self._set_status(TEXT['ready'].format(
-                diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2])))
+            message = TEXT['ready'].format(
+                diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2]))
+            if getattr(parameters, 'inner_relief_pending', False):
+                message += '<br>' + TEXT['inner_relief_pending']
+            self._set_status(message)
         except Exception as error:
             self._set_status(escape(str(error)))
 
@@ -150,8 +184,11 @@ class SeatDialog:
             request = self._request()
             seat_geometry.create_seats(*request, persist=False)
             parameters = request[-1]
-            self._set_status(TEXT['preview_ready'].format(
-                diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2])))
+            message = TEXT['preview_ready'].format(
+                diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2]))
+            if getattr(parameters, 'inner_relief_pending', False):
+                message += '<br>' + TEXT['inner_relief_pending']
+            self._set_status(message)
         except Exception as error:
             self.geometry_error = str(error)
             self._set_status(escape(str(error)))

@@ -65,8 +65,8 @@ class ParameterTests(unittest.TestCase):
 
     def test_invalid_clearances_cannot_remove_the_support_or_end_above_the_relief(self):
         invalid = ({'shaft_allowance_mm': 0}, {'bore_mm': 0}, {'shaft_allowance_mm': 20},
-            {'blind_depth_mm': 7}, {'inner_relief_enabled': True},
-            {'inner_relief_enabled': True, 'inner_diameter_mm': 8},
+            {'blind_depth_mm': 7}, {'inner_relief_enabled': True, 'inner_diameter_mm': 0},
+            {'inner_relief_enabled': True, 'inner_diameter_mm': 8.1},
             {'inner_relief_enabled': True, 'inner_diameter_mm': 21.9},
             {'inner_relief_enabled': True, 'inner_diameter_mm': 12, 'inner_depth_mm': 0},
             {'inner_relief_enabled': True, 'inner_diameter_mm': 12, 'blind_depth_mm': 7.3})
@@ -83,8 +83,24 @@ class ParameterTests(unittest.TestCase):
     def test_missing_manual_inner_diameter_reports_current_value_and_effective_bounds(self):
         with self.assertRaises(ValueError) as raised:
             self.model.SeatParameters(shaft_mode='Through All', shaft_allowance_mm=0.5,
-                                      inner_relief_enabled=True).validate()
+                                      inner_relief_enabled=True, inner_diameter_mm=0).validate()
         message = str(raised.exception)
         self.assertIn('8.500 mm', message)
         self.assertIn('21.900 mm', message)
         self.assertIn('Current value: 0.000 mm', message)
+
+    def test_bore_preset_keeps_preview_valid_without_a_fabricated_relief(self):
+        parameters = self.model.SeatParameters(shaft_mode='Through All', inner_relief_enabled=True)
+        parameters.validate()
+        self.assertEqual(parameters.inner_diameter_mm, parameters.bore_mm)
+        self.assertTrue(parameters.inner_relief_pending)
+        self.assertFalse(parameters.has_inner_relief)
+        self.assertFalse(parameters.snapshot_values()['inner_relief_applied'])
+
+    def test_pending_relief_does_not_require_a_deeper_blind_shaft_pocket(self):
+        parameters = self.model.SeatParameters(shaft_mode='Blind', blind_depth_mm=7.2,
+                                               inner_relief_enabled=True)
+        parameters.validate()
+        with self.assertRaises(ValueError):
+            self.model.SeatParameters(shaft_mode='Blind', blind_depth_mm=7.2,
+                inner_relief_enabled=True, inner_diameter_mm=12).validate()
