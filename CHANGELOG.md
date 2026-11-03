@@ -1,4 +1,14 @@
-﻿# Changelog
+# Changelog
+
+## 0.1.1 - 2026-11-03
+
+- Display the current release version after the BearingNest command name; synchronize the manifest and README.
+- Record owner confirmation of the Solid > Create location and complete contour A proposal.
+- Add a prototype snapshot codec with schema versioning, isolated bearing/profile data and stable identities across parameter revisions.
+- Add a Fusion attribute adapter for storing/updating one record per feature, discovery and missing/ambiguous reference reporting.
+- Keep storage separate from the UI until geometry creation and editing are proven in Fusion; it does not yet create or reopen seats.
+
+Validation: 15 automated tests pass. Menu-label changes and persistence have not been live-tested in Fusion.
 
 ## 0.1.0 — 2026-11-03
 

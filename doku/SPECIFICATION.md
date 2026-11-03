@@ -46,14 +46,14 @@ Manufacturer drawings may call the inner-ring shoulder diameter `d1`; verify the
 - Contact diameter = `D + correction`. Correction presets in mm: **0, -0.05, -0.10, -0.15, -0.20**. Negative correction tightens the fit; radial interference is half its magnitude.
 - Axial correction is measured from the selected face. Zero places the bearing top flush; positive recesses it, negative makes it protrude. Seat depth = `B + axial correction`; reject nonpositive depths.
 - User-defined 45° lead-in chamfer; presets **0.2–0.6 mm**, provisional default **0.4 mm**. Size means equal axial/radial legs. Validate against neighboring geometry.
-- Rounded reliefs flank the contact lands. Use tangent transitions without sharp sketch corners. Exact curve construction and axial extent must be settled with a dimensioned contour/prototype before geometry is called final; screenshots are intent references, not a complete mathematical definition.
+- Use [confirmed contour A](CONTOUR_PROPOSAL.md): concentric contact/relief arcs connected by circular inner and outer fillets with a straight radial wall. Transition width is derived from radius and diameters. Reliefs extend over the full axial seat depth below the lead-in and end at the seat floor. Live Fusion geometry validation remains required.
 - Wider contact lands generally increase engagement, but the UI must not promise a calculated insertion force.
 
 ## Print-derived defaults
 
 | Dimension | Proposed automatic formula |
 |---|---|
-| Side relief width | 2 × nozzle diameter |
+| Side transition width | Derived from contour A; approximately twice the transition radius, not an independent exact input |
 | Radial relief depth | 3 × nozzle diameter |
 | Transition radius | 1 × nozzle diameter |
 | Inner-ring relief depth | 2 × layer height |
@@ -82,7 +82,7 @@ Persist placement references, effective geometry parameters, auto/manual flags, 
 
 ## Remaining decisions
 
-- Final side-relief curve definition and axial extent, confirmed by the owner or a dimensioned prototype.
+- Live Fusion validation of confirmed contour A and its axial extent.
 - Calibrated profile defaults, minimum useful outer-ring support and radial inner-ring clearance.
 - Final manufacturer-verified library records and purchasing links.
 - Publisher identity, actual repository URL and verified Fusion/platform versions. The project uses the MIT license in `../LICENSE`; bundled Autodesk utilities retain their own notices.

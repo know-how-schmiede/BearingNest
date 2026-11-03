@@ -12,7 +12,7 @@ The foundation contains no geometry engine or third-party dependencies. A separa
 2. In Fusion, open **Utilities > Add-Ins > Scripts and Add-Ins**.
 3. Add an existing add-in and choose the BearingNest folder (or its manifest if requested by your Fusion dialog).
 4. Select BearingNest and run it. Run on Startup is disabled by default; enable it only after checking the add-in.
-5. In the Design workspace, open **Solid > Create > BearingNest**.
+5. In the Design workspace, open **Solid > Create > BearingNest <VERSION>**, using the current version from version.py. Stop and restart the add-in after updating the source.
 
 Fusion UI labels vary by version and language. See [Autodesk's installation guide](https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/How-to-install-an-ADD-IN-and-Script-in-Fusion-360.html).
 
@@ -20,7 +20,7 @@ Do not copy only the main Python file. The manifest, `commands`, `config.py`, `v
 
 ## Manual acceptance checks
 
-The owner confirmed command launch under the previous Utilities location. The new Solid > Create placement and updated toolbar icon still need live verification; the remaining acceptance checks below are pending.
+The owner confirmed command launch and the Solid > Create menu position. The version suffix and updated toolbar icon still need live verification; the remaining acceptance checks below are pending.
 
 1. Record OS, Fusion build and add-in version. Stop the previous add-in, then start the updated source. Under Solid > Create, exactly one BearingNest command appears, with its icon and no sample palette commands.
 2. Open the command: exactly **Bearing Seat**, **Settings**, **About** tabs appear in English. Switch through all three and check that text is legible.

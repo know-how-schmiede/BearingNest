@@ -24,7 +24,7 @@ class Items:
         return item
 
     def addButtonDefinition(self, identity, name, description, resources):
-        return self.add(identity, id=identity, commandCreated=object())
+        return self.add(identity, id=identity, name=name, commandCreated=object())
 
     def addCommand(self, definition):
         return self.add(definition.id)
@@ -98,6 +98,8 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(len(self.definitions.items), 1)
         self.assertEqual(len(self.controls.items), 1)
         self.assertEqual(len(self.entry._definition_handlers), 1)
+        self.assertEqual(self.definitions.itemById(self.entry.CMD_ID).name,
+                         f'BearingNest {self.entry.VERSION}')
         self.entry.stop()
         self.entry.stop()
         self.assertFalse(self.definitions.items)

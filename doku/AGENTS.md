@@ -13,7 +13,7 @@
 - Exactly three initial dialog tabs: **Bearing Seat**, **Settings**, **About**.
 - Register BearingNest in Design > Solid > Create (`FusionSolidEnvironment` / `SolidCreatePanel`), promoted to the toolbar. Do not register it under Utilities > Add-Ins. Remove any legacy BearingNest control there during migration and cleanup.
 - Use the BearingNest logo consistently for toolbar SVG/PNG resources. Keep toolbar resources in the dedicated `resources/toolbar` folder; the About image remains a PNG in `resources`.
-- Review [the dimensioned contour proposal](CONTOUR_PROPOSAL.md) before the geometry prototype. Its flank shape, width convention and axial extent are still proposals, not confirmed product requirements.
+- Use [confirmed contour A](CONTOUR_PROPOSAL.md) for the geometry prototype: circular inner/outer fillets joined by a radial wall, derived transition width and full axial seat depth below the lead-in. The owner confirmed this construction; do not ask for confirmation again.
 - Develop the UI, identifiers, messages, comments and project documentation in English.
 - Introduce localization near completion. English is the source locale; German is a translation. Keep UI strings centralized now, without implementing the full translation system prematurely.
 - Keep bearing dimensions, manufacturing corrections and print-derived defaults separate.
@@ -25,6 +25,8 @@
 - Thin walls produce warnings only. Unintended breakout and conflicting seats are errors; deliberate shaft through-holes are allowed.
 
 ## Validation and delivery
+
+- Include the current version after the plugin command name in the menu (`BearingNest <VERSION>`). Keep command IDs stable across version updates. The owner confirmed the Solid > Create menu position.
 
 - Use `Fusion-Add-In/BearingNest/version.py` and its `VERSION` constant as the only manually maintained current release version. Import it directly in plugin code; do not define a separate version in `config.py` or UI strings.
 - After changing `version.py`, run `python tools/sync_version.py` from the repository root. This updates the manifest's literal JSON version and the README current-version header. Fusion cannot import Python values from its manifest.

@@ -41,9 +41,10 @@ def start():
     try:
         if not definition:
             definition = ui.commandDefinitions.addButtonDefinition(
-                CMD_ID, config.ADDIN_NAME, TEXT['description'], ICON_FOLDER)
+                CMD_ID, f'{config.ADDIN_NAME} {VERSION}', TEXT['description'], ICON_FOLDER)
             futil.add_handler(definition.commandCreated, command_created,
                               local_handlers=_definition_handlers)
+        definition.name = f'{config.ADDIN_NAME} {VERSION}'
         control = panel.controls.itemById(CMD_ID)
         if not control:
             control = panel.controls.addCommand(definition)

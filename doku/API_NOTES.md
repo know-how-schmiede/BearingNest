@@ -23,6 +23,8 @@ The owner confirmed command launch under Utilities on Windows. The command has s
 
 ## Later milestones
 
+The owner confirmed the Solid > Create position and contour A construction. The command name now appends the current version using the writable [CommandDefinition.name property](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_CommandDefinition_name.htm). The [persistence prototype](PERSISTENCE_PROTOTYPE.md) implements snapshot serialization and documented attribute/token APIs; live geometry editing remains unproven.
+
 Selection filters, unit conversion, geometry previews, editable features, placement persistence and assembly transforms are deliberately deferred to the 0.2.0 API prototype or the corresponding later milestone. No supported API strategy for editable seat geometry is claimed by the foundation.
 
 ## Official references

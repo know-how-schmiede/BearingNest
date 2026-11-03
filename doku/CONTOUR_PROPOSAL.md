@@ -1,6 +1,6 @@
 # Rounded seat contour — proposal A
 
-Status: dimensioned review prototype for the 0.2.0 milestone. This contour is not yet used by the add-in. Confirmation of the shape, width convention and axial extent is required before adopting it as production geometry.
+Status: construction A confirmed by the owner for the 0.2.0 prototype, including derived transition width and full axial seat depth. This contour is not yet used by the add-in; live Fusion validation is still required.
 
 ![Dimensioned contour proposal](../images/contour-proposal.svg)
 
@@ -35,7 +35,7 @@ Let `r = (D + correction) / 2`, `R = r + relief_depth`, `f = transition_radius`,
 
 Reject a contour when the outer wall endpoint is not beyond the inner endpoint, or when `2β >= p`. Invalid dimensions are reported rather than silently reduced.
 
-## Decisions to confirm
+## Confirmed construction decisions
 
 1. **Flank shape:** use the two circular fillets and radial wall shown above. This creates a relief arc between lands rather than two isolated relief pockets flanking each land.
 2. **Width definition:** with this construction, the tangential transition width is derived from `r`, `R` and `f`. The unwrapped approximation is `2f = 0.80 mm`; it is not an independently adjustable exact width. The earlier provisional side-relief width of `2 × nozzle diameter` therefore needs clarification: does it mean this transition width, the complete gap between lands, or the width of separate pockets? Do not implement an independent width input by silently overriding the radius or land angle.
@@ -45,4 +45,4 @@ Reject a contour when the outer wall endpoint is not beyond the inner endpoint, 
 
 Run `python tools/contour_prototype.py` to regenerate the SVG. The prototype uses only the Python standard library and contains no Fusion calls. Automated checks verify closed contours and tangent continuity for 3, 5, 7 and 9 lands, and reject example infeasible dimensions. They do not prove manufacturability or Fusion feature creation.
 
-After these decisions are settled, the next implementation step is the single-seat Fusion API prototype, including a supported persistence/edit strategy before extending the geometry engine.
+The owner selected this complete proposal. Snapshot serialization and a Fusion attribute adapter are now implemented separately; the single-seat geometry prototype, actual geometry updates and file-reopen behavior still need live proof.
