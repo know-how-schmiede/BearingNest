@@ -1,6 +1,6 @@
 # BearingNest
 
-![BearingNest banner](assets/branding/banner.svg)
+![BearingNest banner](images/banner.svg)
 
 Version: **0.1.0** · Status: specification and visual foundation; no working add-in yet.
 
@@ -8,10 +8,10 @@ BearingNest is a Fusion add-in for creating 3D-print-oriented ball bearing seats
 
 ## Project documents
 
-- [Agent and implementation instructions](AGENTS.md)
-- [Functional specification](docs/SPECIFICATION.md)
-- [Roadmap](ROADMAP.md)
-- [Visual assets](assets/README.md)
+- [Agent and implementation instructions](doku/AGENTS.md)
+- [Functional specification](doku/SPECIFICATION.md)
+- [Roadmap](doku/ROADMAP.md)
+- Visual assets: [logo](images/logo.svg), [banner](images/banner.svg), [bearing seat icon](images/bearing-seat.svg)
 
 The owner will supply an existing add-in template in `/Fusion-Add-In`. Inspect and reuse that template before implementing runtime code. This folder can be copied into the future GitHub repository; no repository or publication has been created.
 

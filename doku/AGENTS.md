@@ -3,7 +3,7 @@
 ## Scope and starting point
 
 - Start at version 0.1.0. Do not imply that specification assets constitute a working release.
-- Read `docs/SPECIFICATION.md` and `ROADMAP.md` before implementation.
+- Read [the functional specification](SPECIFICATION.md) and [the roadmap](ROADMAP.md) before implementation.
 - Inspect the owner's `/Fusion-Add-In` template and its instructions when it arrives. Preserve its lifecycle and conventions; do not replace it with an unrelated scaffold.
 - Use the current official Autodesk Fusion API documentation to verify API choices, selection filters, preview lifecycle, editable feature support, units and resource formats. Do not invent API capabilities.
 - Implement in the template's language. If it is Python, keep pure geometry/validation and persistence separate from Fusion API calls.
