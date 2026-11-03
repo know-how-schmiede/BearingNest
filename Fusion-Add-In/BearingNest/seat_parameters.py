@@ -15,6 +15,7 @@ class SeatParameters:
     rotation_degrees: float = 0.0
     relief_mm: float = 1.2
     fillet_mm: float = 0.4
+    chamfer_mm: float = 0.0
     shaft_mode: str = 'Off'
     bore_mm: float = 8.0
     shaft_allowance_mm: float = 0.2
@@ -62,6 +63,8 @@ class SeatParameters:
             raise ValueError('Bearing dimensions, contact diameter and seat depth must be positive.')
         if type(self.land_count) is not int:
             raise ValueError('Land count must be an integer.')
+        if self.chamfer_mm < 0 or self.chamfer_mm >= self.depth_mm:
+            raise ValueError('Lead-in chamfer must be nonnegative and smaller than the seat depth.')
         if self.shaft_mode not in ('Off', 'Through All', 'Blind'):
             raise ValueError('Unknown shaft opening mode.')
         if type(self.inner_relief_enabled) is not bool:

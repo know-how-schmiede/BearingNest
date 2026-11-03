@@ -15,6 +15,23 @@ class SeatDialog:
         self._last_auto_inner_value = None
         self.geometry_error = None
         self._status_text = TEXT['selection_required']
+        self._batches = {}
+        self._editing_records = None
+        self._discovery_errors = []
+        chooser = inputs.addDropDownCommandInput('seat_batch', TEXT['edit_batch'],
+            adsk.core.DropDownStyles.TextListDropDownStyle)
+        chooser.listItems.add(TEXT['new_batch'], True, '')
+        self.fields['seat_batch'] = chooser
+        if getattr(app, 'activeProduct', None) is not None:
+            from adsk import fusion
+            from ... import seat_edit
+            design = fusion.Design.cast(app.activeProduct)
+            if design is not None:
+                batches, self._discovery_errors = seat_edit.batches(design)
+                for number, records in enumerate(batches, 1):
+                    label = f'Edit batch {number}: {len(records)} seat(s) [{records[0]["seat_id"][:8]}]'
+                    chooser.listItems.add(label, False, '')
+                    self._batches[label] = records
         face = inputs.addSelectionInput('seat_face', TEXT['select_face'], TEXT['select_face_prompt'])
         face.addSelectionFilter('PlanarFaces')
         face.setSelectionLimits(1, 1)
@@ -23,6 +40,7 @@ class SeatDialog:
             position.addSelectionFilter(selection_filter)
         position.setSelectionLimits(1, 0)
         self.fields.update(seat_face=face, seat_position=position)
+        self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', False)
         extra_fields = {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm',
                         'inner_diameter_mm', 'inner_depth_mm'}
         self._add_values(inputs, {field[0] for field in PARAMETER_FIELDS} - extra_fields)
@@ -42,9 +60,10 @@ class SeatDialog:
         self._add_values(inputs, {'inner_diameter_mm', 'inner_depth_mm'})
         self._sync_inner_diameter()
         self._refresh_controls()
-        self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', False)
         self.status = inputs.addTextBoxCommandInput('seat_status', '', TEXT['selection_required'], 4, True)
         self.status.isFullWidth = True
+        if self._discovery_errors:
+            self._set_status(escape('Some saved seats need repair: ' + '; '.join(self._discovery_errors)))
 
     def _add_values(self, inputs, identities):
         for identity, label, units, expression in PARAMETER_FIELDS:
@@ -57,7 +76,7 @@ class SeatDialog:
         import adsk.fusion
         face = self.fields['seat_face']
         position = self.fields['seat_position']
-        if face.selectionCount != 1 or position.selectionCount < 1:
+        if not self._editing_records and (face.selectionCount != 1 or position.selectionCount < 1):
             raise ValueError(TEXT['selection_required'])
         values = {}
         defaults = SeatParameters()
@@ -78,6 +97,8 @@ class SeatDialog:
         design = adsk.fusion.Design.cast(self.app.activeProduct)
         if design is None:
             raise ValueError(TEXT['design_required'])
+        if self._editing_records:
+            return design, None, self._editing_records, parameters
         selected_face = face.selection(0).entity
         selected_positions = [position.selection(index).entity for index in range(position.selectionCount)]
         if check_placement:
@@ -132,6 +153,37 @@ class SeatDialog:
         if self._refreshing or args.input.id not in self.fields:
             return
         self.geometry_error = None
+        if args.input.id == 'seat_batch':
+            self._editing_records = self._batches.get(self.fields['seat_batch'].selectedItem.name)
+            editing = bool(self._editing_records)
+            self._refreshing = True
+            try:
+                for identity in ('seat_face', 'seat_position'):
+                    self.fields[identity].isVisible = not editing
+                    self.fields[identity].setSelectionLimits(0 if editing else 1,
+                        1 if identity == 'seat_face' else 0)
+                if editing:
+                    from ... import seat_edit
+                    values = seat_edit.parameters(self._editing_records[0])
+                    for identity, _, units, _ in PARAMETER_FIELDS:
+                        self.fields[identity].expression = f'{getattr(values, identity):.12g} {units}'
+                    for identity in ('land_count', 'shaft_mode'):
+                        items = self.fields[identity].listItems
+                        for index in range(items.count):
+                            item = items.item(index)
+                            if item.name == str(getattr(values, identity)):
+                                item.isSelected = True
+                                break
+                    self.fields['inner_relief_enabled'].value = values.inner_relief_enabled
+                    self._inner_diameter_auto = self._editing_records[0]['auto_flags'].get(
+                        'inner_diameter_auto', math.isclose(values.inner_diameter_mm, values.bore_mm))
+                    self._last_auto_inner_value = values.bore_mm / 10 if self._inner_diameter_auto else None
+            except Exception as error:
+                self.geometry_error = str(error)
+                self._set_status(escape(str(error)))
+                return
+            finally:
+                self._refreshing = False
         if args.input.id == 'inner_diameter_mm':
             diameter = self.fields['inner_diameter_mm']
             if (not diameter.isValidExpression or self._last_auto_inner_value is None
@@ -182,7 +234,7 @@ class SeatDialog:
         try:
             from ... import seat_geometry
             request = self._request()
-            seat_geometry.create_seats(*request, persist=False)
+            self._apply(request, persist=False)
             parameters = request[-1]
             message = TEXT['preview_ready'].format(
                 diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2]))
@@ -196,9 +248,17 @@ class SeatDialog:
     def execute(self, args):
         try:
             from ... import seat_geometry
-            seat_geometry.create_seats(*self._request(), persist=True)
+            self._apply(self._request(), persist=True)
         except Exception as error:
             # The template's event wrapper logs exceptions; explicitly abort the Fusion transaction.
             args.executeFailed = True
             args.executeFailedMessage = str(error)
             self._set_status(escape(str(error)))
+
+    def _apply(self, request, *, persist):
+        from ... import seat_geometry
+        options = {'auto_flags': {'inner_diameter_auto': self._inner_diameter_auto}} if persist else {}
+        if self._editing_records:
+            from ... import seat_edit
+            return seat_edit.update(request[0], self._editing_records, request[-1], persist=persist, **options)
+        return seat_geometry.create_seats(*request, persist=persist, **options)

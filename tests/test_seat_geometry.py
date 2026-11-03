@@ -135,6 +135,66 @@ class GeometryAdapterTests(unittest.TestCase):
         self.assertTrue(self.sketch.areProfilesShown)
         self.assertFalse(self.sketch.isVisible)
 
+    def test_chamfer_selects_only_rim_edges_and_uses_equal_mm_legs(self):
+        def edge(z):
+            return NS(evaluator=NS(getParameterExtents=lambda: (True, 0, 1),
+                getPointsAtParameters=lambda parameters: (True, [Point(1, 0, z)] * 3)))
+        rim, floor = edge(0), edge(-0.7)
+        self.cut.sideFaces = [NS(edges=[rim, floor]), NS(edges=[rim])]
+        selected = []
+        collection = NS(add=selected.append)
+        request = NS(chamferEdgeSets=NS(addEqualDistanceChamferEdgeSet=Mock()))
+        feature = self.entity('chamfer', bodies=NS(count=1, item=lambda index: NS(volume=8.9)))
+        chamfers = NS(createInput2=lambda: request, add=Mock(return_value=feature))
+        self.design.rootComponent.features.chamferFeatures = chamfers
+        created = []
+        with patch.object(sys.modules['adsk.core'].ObjectCollection, 'create', return_value=collection):
+            result = self.geometry._chamfer(self.design, self.cut, Point(0, 0, 0), Vector(), 0.4, created)
+        self.assertIs(result, feature)
+        self.assertEqual(selected, [rim])
+        request.chamferEdgeSets.addEqualDistanceChamferEdgeSet.assert_called_once_with(collection, '0.4 mm', False)
+        self.assertEqual(created, [feature])
+
+    def test_chamfer_warning_is_rejected_and_owned_by_batch_cleanup(self):
+        edge = NS(evaluator=NS(getParameterExtents=lambda: (True, 0, 1),
+            getPointsAtParameters=lambda parameters: (True, [Point(1, 0, 0)] * 3)))
+        self.cut.sideFaces = [NS(edges=[edge])]
+        feature = self.entity('chamfer', bodies=NS(count=1, item=lambda index: NS(volume=8.9)))
+        feature.healthState = 1
+        self.design.rootComponent.features.chamferFeatures = NS(createInput2=lambda:
+            NS(chamferEdgeSets=NS(addEqualDistanceChamferEdgeSet=Mock())), add=lambda request: feature)
+        created = []
+        with self.assertRaisesRegex(ValueError, 'not healthy'):
+            self.geometry._chamfer(self.design, self.cut, Point(0, 0, 0), Vector(), 0.4, created)
+        self.assertEqual(created, [feature])
+
+    def test_chamfer_has_closed_conservative_preflight_envelope(self):
+        from dataclasses import replace
+        values = replace(self.parameters, chamfer_mm=0.4)
+        with patch.object(self.geometry, '_prepare_round_cut', return_value={}) as prepare:
+            self.geometry._prepare_extras(self.design, self.face, Point(0, 0, 0), Vector(), values, [])
+        options = prepare.call_args.kwargs
+        self.assertEqual(options['kind'], 'chamfer_envelope')
+        self.assertAlmostEqual(options['diameter_mm'], 25.1)
+        self.assertEqual(options['depth_mm'], 0.4)
+        self.assertFalse(options['through_all'])
+
+    def test_edit_snapshot_retains_identity_and_saved_data_with_revised_geometry(self):
+        old = self.geometry.seat_snapshot.create(parameters={}, bearing={'source': 'drawing'},
+            profile={'name': 'saved'}, auto_flags={'other': True}, references={'face': 'old'},
+            features={'seat_cut': 'old'})
+        old['batch_id'] = 'stable batch'
+        with patch.object(self.geometry, '_fully_contained'), patch.object(self.geometry.seat_storage, 'save') as save:
+            self.geometry.create_seats(self.design, self.face, [self.position], self.parameters,
+                persist=True, previous_snapshots=[old], auto_flags={'inner_diameter_auto': False})
+        snapshot = save.call_args.args[1]
+        self.assertEqual(snapshot['seat_id'], old['seat_id'])
+        self.assertEqual(snapshot['batch_id'], 'stable batch')
+        self.assertEqual(snapshot['profile'], old['profile'])
+        self.assertEqual(snapshot['bearing']['source'], 'drawing')
+        self.assertEqual(snapshot['auto_flags'], {'other': True, 'inner_diameter_auto': False})
+        self.assertEqual(snapshot['features']['seat_cut'], 'cut')
+
     def test_commit_saves_manual_bearing_and_effective_values_on_cut_feature(self):
         with patch.object(self.geometry, '_fully_contained'), \
                 patch.object(self.geometry.seat_storage, 'save') as save:

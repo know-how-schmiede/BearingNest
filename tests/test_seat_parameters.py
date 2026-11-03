@@ -28,6 +28,15 @@ class ParameterTests(unittest.TestCase):
         self.assertEqual(self.model.mm_to_cm(7.5), 0.75)
         self.assertEqual(self.model.SeatParameters(axial_mm=-0.5).depth_mm, 6.5)
 
+    def test_chamfer_preserves_full_depth_and_rejects_invalid_sizes(self):
+        values = self.model.SeatParameters(chamfer_mm=0.4)
+        values.validate()
+        self.assertEqual(values.depth_mm, 7)
+        self.assertEqual(values.snapshot_values()['chamfer_mm'], 0.4)
+        for size in (-0.1, 7, 8, float('inf')):
+            with self.assertRaises(ValueError):
+                self.model.SeatParameters(chamfer_mm=size).validate()
+
     def test_invalid_or_infeasible_geometry_is_rejected_before_fusion(self):
         for values in ({'outside_mm': 0}, {'width_mm': -1}, {'axial_mm': -7},
                        {'correction_mm': -22}, {'land_count': 4}, {'land_count': 5.0},

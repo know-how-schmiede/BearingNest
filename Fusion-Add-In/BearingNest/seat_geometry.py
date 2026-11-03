@@ -1,5 +1,6 @@
 """Atomic seat batches on one root-component face, within command transactions."""
 import math
+from uuid import uuid4
 import adsk.core
 import adsk.fusion
 from . import seat_snapshot, seat_storage
@@ -236,6 +237,11 @@ def _prepare_round_cut(design, face, point, outward, parameters, created, *,
 
 def _prepare_extras(design, face, point, outward, parameters, created):
     extras = []
+    if parameters.chamfer_mm:
+        extras.append(_prepare_round_cut(design, face, point, outward, parameters, created,
+            kind='chamfer_envelope',
+            diameter_mm=parameters.contact_mm + 2 * (parameters.relief_mm + parameters.chamfer_mm),
+            depth_mm=parameters.chamfer_mm, start_mm=0, through_all=False))
     if parameters.shaft_mode != 'Off':
         extras.append(_prepare_round_cut(design, face, point, outward, parameters, created,
             kind='shaft_cut', diameter_mm=parameters.shaft_diameter_mm,
@@ -247,6 +253,44 @@ def _prepare_extras(design, face, point, outward, parameters, created):
             depth_mm=parameters.inner_depth_mm, start_mm=parameters.depth_mm,
             through_all=False))
     return extras
+
+
+def _chamfer(design, cut, point, outward, distance_mm, created):
+    """Chamfer only the seat rim on the original placement plane, not its floor."""
+    edges = adsk.core.ObjectCollection.create()
+    selected = []
+    for side in cut.sideFaces:
+        for edge in side.edges:
+            if any(edge == previous for previous in selected):
+                continue
+            ok, low, high = edge.evaluator.getParameterExtents()
+            if not ok:
+                raise ValueError('Could not inspect the seat rim.')
+            ok, samples = edge.evaluator.getPointsAtParameters([low, (low + high) / 2, high])
+            if not ok:
+                raise ValueError('Could not inspect the seat rim.')
+            if all(abs(point.vectorTo(sample).dotProduct(outward)) < 1e-6 for sample in samples):
+                edges.add(edge)
+                selected.append(edge)
+    if not selected:
+        raise ValueError('No complete seat rim was found for the lead-in chamfer.')
+    chamfers = design.rootComponent.features.chamferFeatures
+    request = chamfers.createInput2()
+    request.chamferEdgeSets.addEqualDistanceChamferEdgeSet(
+        edges, adsk.core.ValueInput.createByString(f'{distance_mm:.12g} mm'), False)
+    before = cut.bodies.item(0).volume
+    feature = chamfers.add(request)
+    if feature is None:
+        raise ValueError('Fusion could not create the lead-in chamfer.')
+    created.append(feature)
+    feature.name = 'BearingNest - lead-in chamfer'
+    if (feature.healthState != adsk.fusion.FeatureHealthStates.HealthyFeatureHealthState
+            or feature.bodies.count != 1):
+        raise ValueError('The lead-in chamfer is not healthy; reduce its size.')
+    after = feature.bodies.item(0).volume
+    if not math.isfinite(after) or before - after <= max(1e-9, before * 1e-10):
+        raise ValueError('The lead-in chamfer removed no measurable material.')
+    return feature
 
 
 def _check_overlap(manager, first, second):
@@ -277,12 +321,16 @@ def _hide_position_fills(positions, changed):
                 sketch.areProfilesShown = False
 
 
-def create_seats(design, face, positions, parameters, *, persist):
+def create_seats(design, face, positions, parameters, *, persist, previous_snapshots=None, auto_flags=None):
     """Validate every position and pair before the first cut, in one command transaction."""
     parameters.validate()
     positions = list(positions)
     if not positions:
         raise ValueError('Select at least one seat position.')
+    if previous_snapshots is not None and len(previous_snapshots) != len(positions):
+        raise ValueError('The edited batch must retain all its positions.')
+    batch_id = (previous_snapshots[0].get('batch_id', str(uuid4()))
+                if previous_snapshots else str(uuid4()))
     # Resolve all placements and references before model topology can change.
     placements = []
     for index, position in enumerate(positions, 1):
@@ -335,7 +383,16 @@ def create_seats(design, face, positions, parameters, *, persist):
             item['sketch'].isVisible = False
             item['sketch'].areProfilesShown = True
             item['features'] = {'contour': item['sketch'].entityToken, 'seat_cut': cut.entityToken}
+            if parameters.chamfer_mm:
+                point, outward, _ = placements[index - 1]
+                chamfer = _chamfer(design, cut, point, outward, parameters.chamfer_mm, created)
+                body = chamfer.bodies.item(0)
+                item['features']['chamfer'] = chamfer.entityToken
             for operation in item['extras']:
+                if operation['kind'] == 'chamfer_envelope':
+                    if not operation['sketch'].deleteMe():
+                        raise RuntimeError('Could not remove the chamfer validation sketch.')
+                    continue
                 clearance = _extrude(design, operation['sketch'], parameters, operation['direction'],
                     adsk.fusion.FeatureOperations.CutFeatureOperation, body,
                     depth_mm=operation['depth_mm'], start_mm=operation['start_mm'],
@@ -351,14 +408,24 @@ def create_seats(design, face, positions, parameters, *, persist):
             cuts.append(cut)
 
         if persist:
-            for cut, item in zip(cuts, prepared):
+            for index, (cut, item) in enumerate(zip(cuts, prepared)):
                 snapshot = seat_snapshot.create(parameters=parameters.snapshot_values(),
                     bearing={'D_mm': parameters.outside_mm, 'B_mm': parameters.width_mm,
                              'd_mm': parameters.bore_mm if parameters.shaft_mode != 'Off' else None,
                              'inner_ring_outside_mm': None, 'source': 'manual'},
-                    profile={'name': 'Manual prototype values'}, auto_flags={},
+                    profile={'name': 'Manual prototype values'}, auto_flags=auto_flags or {},
                     references=item['references'],
                     features=item['features'])
+                snapshot['batch_id'] = batch_id
+                if previous_snapshots:
+                    old = previous_snapshots[index]
+                    snapshot = seat_snapshot.revise(old, parameters=snapshot['parameters'],
+                        bearing=dict(old['bearing'], D_mm=parameters.outside_mm,
+                            B_mm=parameters.width_mm,
+                            d_mm=parameters.bore_mm if parameters.shaft_mode != 'Off' else None),
+                        auto_flags=old['auto_flags'] if auto_flags is None else dict(old['auto_flags'], **auto_flags),
+                        references=snapshot['references'], features=snapshot['features'])
+                    snapshot['batch_id'] = batch_id
                 seat_storage.save(cut, snapshot)
         return cuts
     except Exception:

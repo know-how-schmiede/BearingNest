@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 - 2026-11-03
+
+- Record the owner's 0.1.8 trial: no observed errors. This confirms the tested baseline without claiming every platform/lifecycle acceptance case was exercised.
+- Add an optional native equal-distance 45-degree lead-in chamfer (0 = off), with positive remaining seat depth, rim-only edge selection, feature health and material-removal checks.
+- Include a conservative full-circle chamfer envelope in batch containment/overlap preflight before any cuts. Close placements may be rejected even where the exact chamfer would fit.
+- Discover saved seats in a Create or edit seats list, refill stored parameters and retain manual relief overrides. New snapshots store batch identities and the relief auto/manual flag; old schema-1 records remain readable with chamfer disabled.
+- Rebuild the last complete batch with shared settings inside command transactions. Keep stable seat IDs, bearing/profile metadata and updated feature references. Missing/ambiguous references, later timeline features and groups block this initial edit strategy. Legacy multi-seat creations without batch identities may require recreation.
+- Suppress original cuts during rebuild, restore them on failed previews, and delete originals only after successful execute creation. Successful previews rely on Fusion's command rollback; execute errors abort the transaction.
+- Update documentation, manifest, menu and README to 0.2.0.
+
+Validation: automated substitute checks cover chamfer rim selection/preflight, snapshot identity, discovery, legacy defaults, failed-preview restoration and edit guards. Native Fusion chamfer/edit, save/reopen, cancellation and undo/redo acceptance is pending; the 0.2.0 roadmap milestone is not yet live-proven.
+
 ## 0.1.8 - 2026-11-03
 
 - Prefill Inner-ring relief diameter from Bearing bore, follow bore changes until a manual override, and preserve manually entered diameters.
@@ -7,7 +19,7 @@
 - Move selection focus from the chosen face to Seat positions without stealing focus on parameter edits.
 - Synchronize version.py, manifest, menu and README to 0.1.8.
 
-Validation: 66 automated tests pass, including preset updates, manual override preservation, delayed input events, pending-state geometry and selection focus. The owner confirmed shaft opening and inner-ring relief in 0.1.7; the new UI behavior needs live confirmation.
+Validation: 66 automated tests pass, including preset updates, manual override preservation, delayed input events, pending-state geometry and selection focus. The owner confirmed shaft opening and inner-ring relief in 0.1.7 and subsequently reported no observed errors in the 0.1.8 trial on 2026-11-03.
 
 ## 0.1.7 - 2026-11-03
 

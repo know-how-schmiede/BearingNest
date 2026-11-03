@@ -85,10 +85,14 @@ class Inputs:
 
     def addDropDownCommandInput(self, identity, label, style):
         field = SimpleNamespace(id=identity, selectedItem=None)
+        items = []
         def add(name, selected, icon):
+            item = SimpleNamespace(name=name, isSelected=selected)
+            items.append(item)
+            field.listItems.count = len(items)
             if selected:
-                field.selectedItem = SimpleNamespace(name=name)
-        field.listItems = SimpleNamespace(add=add)
+                field.selectedItem = item
+        field.listItems = SimpleNamespace(add=add, count=0, item=lambda index: items[index])
         self.fields.append(field)
         return field
 
@@ -198,7 +202,7 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual([tab.label for tab in inputs.tabs],
                          ['Bearing Seat', 'Settings', 'About'])
         self.assertTrue(command.isOKButtonVisible)
-        self.assertEqual(command.okButtonText, 'Create Seats')
+        self.assertEqual(command.okButtonText, 'Apply Seats')
         self.assertEqual(dialog.fields['seat_position'].limits, (1, 0))
         self.assertEqual(dialog.fields['seat_face'].filters, ['PlanarFaces'])
         self.assertIn('CircularEdges', dialog.fields['seat_position'].filters)
@@ -217,6 +221,44 @@ class FoundationTests(unittest.TestCase):
             dialog.execute(args)
         self.assertTrue(args.executeFailed)
         self.assertEqual(args.executeFailedMessage, 'snapshot failed')
+
+    def test_saved_batch_refills_parameters_without_required_hidden_selections(self):
+        command, inputs, dialog = self.make_dialog()
+        values = self.entry.SeatDialog.__init__.__globals__['SeatParameters'](
+            outside_mm=24, chamfer_mm=0.3, inner_diameter_mm=12)
+        record = {'parameters': values.snapshot_values(), 'auto_flags': {'inner_diameter_auto': False}}
+        dialog._batches['saved'] = [record]
+        dialog.fields['seat_batch'].selectedItem.name = 'saved'
+        edit = ModuleType('foundation.seat_edit')
+        edit.parameters = Mock(return_value=values)
+        with patch.dict(sys.modules, {'foundation.seat_edit': edit}):
+            dialog.changed(SimpleNamespace(input=SimpleNamespace(id='seat_batch')))
+        self.assertEqual(dialog.fields['outside_mm'].value, 2.4)
+        self.assertEqual(dialog.fields['chamfer_mm'].value, 0.03)
+        self.assertFalse(dialog._inner_diameter_auto)
+        self.assertFalse(dialog.fields['seat_face'].isVisible)
+        self.assertEqual(dialog.fields['seat_position'].limits, (0, 0))
+        self.assertIs(dialog._editing_records[0], record)
+        dialog.fields['seat_batch'].selectedItem.name = 'Create new seats'
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id='seat_batch')))
+        self.assertIsNone(dialog._editing_records)
+        self.assertTrue(dialog.fields['seat_face'].isVisible)
+        self.assertEqual(dialog.fields['seat_position'].limits, (1, 0))
+
+    def test_edit_execute_failure_aborts_transaction_and_routes_to_update(self):
+        command, inputs, dialog = self.make_dialog()
+        dialog._editing_records = [{'seat_id': 'saved'}]
+        edit = ModuleType('foundation.seat_edit')
+        edit.update = Mock(side_effect=RuntimeError('edit failure'))
+        geometry = ModuleType('foundation.seat_geometry')
+        args = SimpleNamespace()
+        with patch.dict(sys.modules, {'foundation.seat_edit': edit, 'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, None, dialog._editing_records, 4)):
+            dialog.execute(args)
+        self.assertTrue(args.executeFailed)
+        self.assertEqual(args.executeFailedMessage, 'edit failure')
+        edit.update.assert_called_once_with(1, dialog._editing_records, 4, persist=True,
+            auto_flags={'inner_diameter_auto': True})
 
     def test_preview_is_opt_in_and_cannot_be_committed_without_execute(self):
         command, inputs, dialog = self.make_dialog()

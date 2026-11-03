@@ -1,4 +1,4 @@
-"""Prototype Fusion attribute adapter; not wired to geometry creation yet."""
+"""Versioned Fusion attribute storage and reference resolution."""
 from . import seat_snapshot
 
 GROUP = 'BearingNest'

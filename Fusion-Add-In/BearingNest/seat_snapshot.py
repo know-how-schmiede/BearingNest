@@ -16,6 +16,8 @@ def validate(snapshot):
         raise ValueError('Unsupported seat schema version; migration is required.')
     if not isinstance(snapshot.get('seat_id'), str) or not snapshot['seat_id'].strip():
         raise ValueError('Seat identity is missing.')
+    if 'batch_id' in snapshot and (not isinstance(snapshot['batch_id'], str) or not snapshot['batch_id'].strip()):
+        raise ValueError('Seat batch identity is invalid.')
     for section in SECTIONS:
         if not isinstance(snapshot.get(section), dict):
             raise ValueError(f'Seat section must be an object: {section}')

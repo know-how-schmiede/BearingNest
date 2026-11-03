@@ -55,6 +55,6 @@ Pairwise batch checks include every seat/shaft/relief envelope. All validation e
 5. Try an unknown/zero relief diameter, a relief smaller than the shaft, insufficient support geometry and a blind depth ending above the relief. Each invalid batch must be rejected without partial cuts.
 6. Preview multiple positions, change modes and dimensions, cancel, then create. Verify no validation tools remain and undo removes the whole batch in one step.
 7. Test a relief or blind depth that breaks out. Also verify that an intentional Through All exit is accepted.
-8. Inspect saved snapshots after saving/reopening a disposable design. Reopening/editing through the BearingNest UI is still pending.
+8. Inspect saved snapshots after saving/reopening a disposable design. Version 0.2.0 adds reopening/editing of the last complete batch; see INSTALLATION.md for live acceptance checks.
 
-Chamfer and seat editing remain the next implementation steps. The full 0.2.0 milestone is not complete.
+The owner reported no observed errors in the 0.1.8 trial on 2026-11-03. Version 0.2.0 implements optional chamfer and constrained batch editing; their live acceptance remains open.
