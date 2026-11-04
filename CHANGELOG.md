@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-11-04
+
+- Add searchable 623/624/625/608 size aliases with principal dimensions verified against the SKF NILOS-Rings bearing table. Unknown ring geometry stays null; RC/MR candidates remain pending verification.
+- Add custom bearing metadata, drawing/source fields, optional purchasing URLs, stable custom identities and manual dimension overrides. Seed aliases remain separate from product-specific records.
+- Add named nozzle/layer/factor profiles, per-field Auto/Manual flags and reset to suggestions. Switching profiles preserves manual values and independent fit corrections; infeasible geometry remains an error.
+- Add validated schema-1 local JSON settings with atomic replacement, custom/profile save/delete and explicit import/export. Corrupt/future-schema files are preserved and block settings writes. Library actions save immediately, separately from geometry Apply/Cancel.
+- Persist effective bearing dimensions, original catalog dimensions, source/profile copies and auto flags per seat. Reopening retains historical values; legacy derived fields default to Manual. Guard delayed programmatic selector events from overwriting restored values.
+- Synchronize the current release version and document the new workflows and remaining live proof. The owner requested proceeding with catalog/profile development before the separate 0.2.0 acceptance gate was closed.
+
+Validation: 108 automated tests pass, including API-substitute and local-file checks for catalog/profile validation, overrides/reset, storage failure preservation, import/export, historical snapshots and metadata forwarding. Native Fusion UI/save-reopen and Windows/macOS acceptance remain pending; the stored wall threshold does not implement wall detection.
+
 ## 0.2.0 - 2026-11-03
 
 - Record the owner's 0.1.8 trial: no observed errors. This confirms the tested baseline without claiming every platform/lifecycle acceptance case was exercised.

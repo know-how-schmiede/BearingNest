@@ -4,6 +4,7 @@ import json
 import math
 from pathlib import Path
 import sys
+import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch, Mock
@@ -45,7 +46,7 @@ class ValueField:
         self._expression = expression
         try:
             number = float(expression.split()[0])
-            self.value = math.radians(number) if self.units == 'deg' else number / 10
+            self.value = math.radians(number) if self.units == 'deg' else number / 10 if self.units == 'mm' else number
             self.isValidExpression = True
         except ValueError:
             self.isValidExpression = False
@@ -92,7 +93,16 @@ class Inputs:
             field.listItems.count = len(items)
             if selected:
                 field.selectedItem = item
-        field.listItems = SimpleNamespace(add=add, count=0, item=lambda index: items[index])
+        def clear():
+            items.clear()
+            field.selectedItem = None
+            field.listItems.count = 0
+        field.listItems = SimpleNamespace(add=add, clear=clear, count=0, item=lambda index: items[index])
+        self.fields.append(field)
+        return field
+
+    def addStringValueInput(self, identity, label, initial=''):
+        field = SimpleNamespace(id=identity, value=initial)
         self.fields.append(field)
         return field
 
@@ -192,7 +202,9 @@ class FoundationTests(unittest.TestCase):
                                   validateInputs=object(), inputChanged=object(),
                                   executePreview=object(), execute=object(),
                                   setDialogInitialSize=lambda width, height: None)
-        self.entry.command_created(SimpleNamespace(command=command))
+        with patch.object(self.entry.CatalogDialog.__init__.__globals__['model'], 'load',
+                          side_effect=lambda: self.entry.CatalogDialog.__init__.__globals__['model'].defaults()):
+            self.entry.command_created(SimpleNamespace(command=command))
         dialog = next(callback.__self__ for callback in self.callbacks
                       if callback.__name__ == 'execute')
         return command, inputs, dialog
@@ -213,6 +225,7 @@ class FoundationTests(unittest.TestCase):
 
     def test_execute_failure_marks_entire_command_transaction_for_abort(self):
         command, inputs, dialog = self.make_dialog()
+        dialog.catalog = None
         geometry = ModuleType('foundation.seat_geometry')
         geometry.create_seats = Mock(side_effect=RuntimeError('snapshot failed'))
         args = SimpleNamespace()
@@ -221,6 +234,209 @@ class FoundationTests(unittest.TestCase):
             dialog.execute(args)
         self.assertTrue(args.executeFailed)
         self.assertEqual(args.executeFailedMessage, 'snapshot failed')
+
+    def change(self, dialog, identity):
+        dialog.changed(SimpleNamespace(input=SimpleNamespace(id=identity)))
+
+    def select_catalog_bearing(self, dialog, designation):
+        label = next(label for label, record in dialog.catalog.bearing_choices.items()
+                     if record and record.get('designation') == designation)
+        dialog.fields['catalog_bearing'].selectedItem = SimpleNamespace(name=label)
+        self.change(dialog, 'catalog_bearing')
+
+    def test_catalog_selection_updates_dimensions_but_keeps_fit_and_manual_relief(self):
+        _, _, dialog = self.make_dialog()
+        dialog.fields['inner_diameter_mm'].expression = '9 mm'
+        self.change(dialog, 'inner_diameter_mm')
+        self.select_catalog_bearing(dialog, '623')
+        self.assertEqual(dialog.fields['bore_mm'].value, 0.3)
+        self.assertEqual(dialog.fields['outside_mm'].value, 1)
+        self.assertEqual(dialog.fields['width_mm'].value, 0.4)
+        self.assertEqual(dialog.fields['correction_mm'].value, -0.01)
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 0.9)
+        self.assertIsNone(dialog.catalog.bearing['inner_ring_outside_mm'])
+
+    def test_profile_save_switch_preserves_manual_field_and_reset_restores_auto(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        dialog.fields['relief_mm'].expression = '1.5 mm'
+        self.change(dialog, 'relief_mm')
+        self.assertFalse(dialog.fields['relief_mm_auto'].value)
+        dialog.fields['profile_name'].value = 'Coarse'
+        dialog.fields['profile_nozzle_mm'].expression = '0.6 mm'
+        dialog.fields['profile_layer_mm'].expression = '0.3 mm'
+        dialog.fields['profile_save'].value = True
+        with patch.object(catalog._save.__globals__['model'], 'save') as save:
+            self.change(dialog, 'profile_save')
+        save.assert_called_once()
+        self.assertEqual(catalog.profile['name'], 'Coarse')
+        self.assertAlmostEqual(dialog.fields['relief_mm'].value, 0.15)
+        self.assertAlmostEqual(dialog.fields['fillet_mm'].value, 0.06)
+        self.assertAlmostEqual(dialog.fields['inner_depth_mm'].value, 0.06)
+        self.assertEqual(catalog.profile['relief_factor'], 3)
+        dialog.fields['profile_reset'].value = True
+        self.change(dialog, 'profile_reset')
+        self.assertAlmostEqual(dialog.fields['relief_mm'].value, 0.18)
+        self.assertTrue(dialog.fields['relief_mm_auto'].value)
+        # A delayed event for a programmatic assignment must keep Auto enabled.
+        self.change(dialog, 'relief_mm')
+        self.assertTrue(dialog.fields['relief_mm_auto'].value)
+
+    def test_catalog_search_does_not_change_the_current_dimensions(self):
+        _, _, dialog = self.make_dialog()
+        self.select_catalog_bearing(dialog, '608')
+        dialog.fields['catalog_search'].value = 'not found'
+        self.change(dialog, 'catalog_search')
+        self.assertEqual(dialog.catalog.bearing['designation'], '608')
+        self.assertEqual(dialog.fields['outside_mm'].value, 2.2)
+        self.assertEqual(len(dialog.catalog.bearing_choices), 2)  # manual + current snapshot
+
+    def test_custom_bearing_save_round_trips_unknown_ring_and_metadata(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        dialog.fields['custom_designation'].value = 'My bearing'
+        dialog.fields['custom_source'].value = 'My drawing'
+        dialog.fields['custom_purchasing_url'].value = 'https://example.com/item'
+        dialog.fields['bearing_save'].value = True
+        with patch.object(catalog._save.__globals__['model'], 'save') as save:
+            self.change(dialog, 'bearing_save')
+        save.assert_called_once()
+        record = catalog.data['bearings'][0]
+        self.assertEqual(record['D_mm'], 22)
+        self.assertEqual(record['source'], 'My drawing')
+        self.assertIsNone(record['inner_ring_outside_mm'])
+        self.assertTrue(record['id'].startswith('custom-'))
+        self.assertFalse(dialog.fields['bearing_save'].value)
+
+    def test_invalid_settings_do_not_partially_replace_data_or_profile(self):
+        _, _, dialog = self.make_dialog()
+        original = dialog.catalog.profile.copy()
+        dialog.fields['profile_nozzle_mm'].expression = '0 mm'
+        dialog.fields['profile_save'].value = True
+        with patch.object(dialog.catalog._save.__globals__['model'], 'save') as save:
+            self.change(dialog, 'profile_save')
+        save.assert_not_called()
+        self.assertEqual(dialog.catalog.profile, original)
+        self.assertIn('positive', dialog.catalog.status.formattedText)
+
+    def test_restoring_a_snapshot_keeps_old_values_and_profile_despite_library_changes(self):
+        _, _, dialog = self.make_dialog()
+        model = dialog.catalog._save.__globals__['model']
+        stored_profile = dict(model.DEFAULT_PROFILE, nozzle_mm=0.25, name='Historical')
+        record = {'bearing': model.seed_bearings()[-1], 'profile': stored_profile,
+                  'auto_flags': {'relief_mm_auto': True}}
+        dialog.fields['relief_mm'].expression = '0.8 mm'
+        dialog.catalog.data['profiles'][0]['nozzle_mm'] = 1
+        dialog.catalog.restore(record)
+        self.assertEqual(dialog.fields['relief_mm'].value, 0.08)
+        self.assertEqual(dialog.catalog.profile['nozzle_mm'], 0.25)
+        self.assertTrue(dialog.fields['relief_mm_auto'].value)
+        self.assertFalse(dialog.fields['fillet_mm_auto'].value)
+        self.assertIn('Stored seat profile snapshot', dialog.catalog.profile_choices)
+
+    def test_persistent_creation_passes_effective_bearing_profile_and_flags(self):
+        _, _, dialog = self.make_dialog()
+        self.select_catalog_bearing(dialog, '608')
+        values = self.entry.SeatDialog.__init__.__globals__['SeatParameters'](outside_mm=23)
+        geometry = ModuleType('foundation.seat_geometry')
+        geometry.create_seats = Mock()
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}):
+            dialog._apply((1, 2, [3], values), persist=True)
+        options = geometry.create_seats.call_args.kwargs
+        self.assertEqual(options['bearing']['D_mm'], 23)
+        self.assertTrue(options['bearing']['dimensions_overridden'])
+        self.assertEqual(options['profile']['nozzle_mm'], 0.4)
+        self.assertTrue(options['auto_flags']['relief_mm_auto'])
+
+    def test_delayed_selector_events_after_restore_do_not_reapply_library_defaults(self):
+        _, _, dialog = self.make_dialog()
+        model = dialog.catalog._save.__globals__['model']
+        dialog.fields['relief_mm'].expression = '1.7 mm'
+        dialog.fields['outside_mm'].expression = '23 mm'
+        bearing = dict(model.seed_bearings()[-1], D_mm=23)
+        dialog.catalog.restore({'bearing': bearing, 'profile': dict(model.DEFAULT_PROFILE),
+                                'auto_flags': {'relief_mm_auto': True}})
+        self.change(dialog, 'print_profile')
+        self.change(dialog, 'catalog_bearing')
+        self.change(dialog, 'relief_mm_auto')
+        self.change(dialog, 'fillet_mm_auto')
+        self.assertAlmostEqual(dialog.fields['relief_mm'].value, 0.17)
+        self.assertEqual(dialog.fields['outside_mm'].value, 2.3)
+        dialog.fields['fillet_mm_auto'].value = True
+        self.change(dialog, 'fillet_mm_auto')
+        self.assertAlmostEqual(dialog.fields['relief_mm'].value, 0.17)
+        # The current library size remains an explicit alternative to the snapshot.
+        self.select_catalog_bearing(dialog, '608')
+        self.assertEqual(dialog.fields['outside_mm'].value, 2.2)
+
+    def test_import_is_atomic_and_does_not_modify_current_seat_profile(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'import.json'
+            imported = model.defaults()
+            imported['profiles'][0]['nozzle_mm'] = 0.8
+            model.save(imported, path)
+            dialog.fields['settings_file'].value = str(path)
+            with patch.object(model, 'save') as save:
+                catalog._action('settings_import')
+            save.assert_called_once()
+            self.assertEqual(catalog.data['profiles'][0]['nozzle_mm'], 0.8)
+            self.assertEqual(catalog.profile['nozzle_mm'], 0.4)
+            self.assertAlmostEqual(dialog.fields['relief_mm'].value, 0.12)
+            before = catalog.data.copy()
+            path.write_text('{"schema_version":999}')
+            with patch.object(model, 'save') as save:
+                with self.assertRaises(ValueError):
+                    catalog._action('settings_import')
+            save.assert_not_called()
+            self.assertEqual(catalog.data, before)
+
+    def test_export_does_not_overwrite_existing_files(self):
+        _, _, dialog = self.make_dialog()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'export.json'
+            dialog.fields['settings_file'].value = str(path)
+            dialog.catalog._action('settings_export')
+            content = path.read_bytes()
+            with self.assertRaises(ValueError):
+                dialog.catalog._action('settings_export')
+            self.assertEqual(path.read_bytes(), content)
+
+    def test_corrupt_settings_block_save_and_last_profile_cannot_be_deleted(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        with patch.object(model, 'save') as save:
+            catalog.load_error = 'Corrupt original'
+            with self.assertRaises(ValueError):
+                catalog._save(model.defaults())
+            catalog.load_error = None
+            # A real validation failure occurs before reaching file replacement.
+            with self.assertRaises(ValueError):
+                model.validate(dict(catalog.data, profiles=[]))
+        save.assert_not_called()
+
+    def test_deleting_library_entries_keeps_active_seat_snapshots(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        record = dict(model.seed_bearings()[-1], id='custom-test')
+        catalog.data['bearings'].append(record.copy())
+        catalog.bearing = record.copy()
+        catalog.data['profiles'].append(dict(model.DEFAULT_PROFILE, id='other', name='Other', nozzle_mm=0.6))
+        original_profile = catalog.profile.copy()
+        dialog.fields['custom_id'].value = 'custom-test'
+        with patch.object(model, 'save'):
+            catalog._action('bearing_delete')
+            catalog._action('profile_delete')
+        self.assertEqual(catalog.bearing, record)
+        self.assertEqual(catalog.profile, original_profile)
+        self.assertAlmostEqual(dialog.fields['relief_mm'].value, 0.12)
+        self.assertFalse(catalog.data['bearings'])
+        self.assertEqual(catalog.data['profiles'][0]['name'], 'Other')
+        self.assertIn('Stored seat profile snapshot', catalog.profile_choices)
 
     def test_saved_batch_refills_parameters_without_required_hidden_selections(self):
         command, inputs, dialog = self.make_dialog()
@@ -247,6 +463,7 @@ class FoundationTests(unittest.TestCase):
 
     def test_edit_execute_failure_aborts_transaction_and_routes_to_update(self):
         command, inputs, dialog = self.make_dialog()
+        dialog.catalog = None
         dialog._editing_records = [{'seat_id': 'saved'}]
         edit = ModuleType('foundation.seat_edit')
         edit.update = Mock(side_effect=RuntimeError('edit failure'))

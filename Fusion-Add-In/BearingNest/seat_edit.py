@@ -68,7 +68,7 @@ def editable_entities(design, records):
     return sorted(entities, key=lambda entity: entity.timelineObject.index, reverse=True)
 
 
-def update(design, records, values, *, persist, auto_flags=None):
+def update(design, records, values, *, persist, auto_flags=None, bearing=None, profile=None):
     values.validate()
     entities = editable_entities(design, records)
     suppressed = []
@@ -88,8 +88,13 @@ def update(design, records, values, *, persist, auto_flags=None):
         if any(face != faces[0] for face in faces):
             raise ValueError('The batch no longer refers to one planar face.')
         positions = [_unique(design, record['references']['position'], 'position') for record in records]
+        metadata = {}
+        if bearing is not None:
+            metadata['bearing'] = bearing
+        if profile is not None:
+            metadata['profile'] = profile
         cuts = seat_geometry.create_seats(design, faces[0], positions, values,
-            persist=persist, previous_snapshots=records, auto_flags=auto_flags)
+            persist=persist, previous_snapshots=records, auto_flags=auto_flags, **metadata)
         if persist:
             # A failure here aborts the whole execute transaction in the dialog.
             for entity in entities:

@@ -2,7 +2,7 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.2.0** · Status: geometry/edit prototype; owner tested 0.1.8 without observed errors. New 0.2.0 chamfer and batch editing await live Fusion acceptance.
+Version: **0.3.0** · Status: catalog/profile prototype; owner tested 0.1.8 without observed errors. Geometry/edit and new catalog/profile UI await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
@@ -22,9 +22,11 @@ The owner confirmed preview and creation working in 0.1.5. See [all four screens
 - Optional 45-degree lead-in chamfer with equal axial/radial legs; 0 mm disables it. A conservative enclosing-cylinder preflight may reject close placements.
 - A versioned snapshot per seat with direct-cut, clearance and chamfer references, stable seat identity and creation-batch identity. Validation tool extrusions are removed before cutting.
 - A Create or edit seats list reloads saved batches. The last complete batch can be rebuilt with shared settings; downstream features, timeline groups and missing/ambiguous references block editing.
+- Searchable verified seed sizes 623/624/625/608, custom bearing records with sources and optional purchasing URLs, and manual dimension overrides.
+- Named print profiles with per-field Auto/Manual settings, reset to suggestions, versioned local JSON storage and validated import/export. Existing seats keep independent bearing/profile snapshots.
 - Contour sketches hidden after cutting, with profiles kept enabled for feature calculation; successful creation also hides profile fills on selected placement sketches while preserving points, curves and sketch visibility.
 
-The prototype supports a single solid body in the root component of a parametric design. Catalog, print profile management, thin-wall warnings and editing with downstream features remain pending. The 0.2.0 implementation awaits live chamfer/edit/save-reopen and lifecycle proof before its roadmap milestone can be closed.
+The prototype supports a single solid body in the root component of a parametric design. Further seed sizes, thin-wall warnings and editing with downstream features remain pending. The 0.2.0 geometry/edit proof remains open; the owner requested proceeding with 0.3.0 catalog/profile development. The new dialog and local persistence also require live Fusion acceptance. See the [catalog/profile guide and acceptance procedure](doku/CATALOG_AND_PROFILES.md).
 
 ## Install and try
 
@@ -48,6 +50,7 @@ The only manually maintained current release version is [version.py](Fusion-Add-
 - [Screenshots of the confirmed 0.1.5 baseline](doku/SCREENSHOTS.md)
 - [Shaft opening and inner-ring relief](doku/SHAFT_AND_RELIEF.md)
 - [Persistence, batch editing and remaining live proof](doku/PERSISTENCE_PROTOTYPE.md)
+- [Bearing catalog, named print profiles and local settings](doku/CATALOG_AND_PROFILES.md)
 - [API notes and verification status](doku/API_NOTES.md)
 - Visual assets: [logo](images/logo.svg), [banner](images/banner.svg), [bearing seat icon](images/bearing-seat.svg)
 

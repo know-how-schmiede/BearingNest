@@ -207,6 +207,29 @@ class GeometryAdapterTests(unittest.TestCase):
         self.assertIsNone(snapshot['bearing']['d_mm'])
         self.assertNotIn('tool', snapshot['features'])
 
+    def test_catalog_metadata_and_profile_are_detached_on_create_and_edit(self):
+        bearing = {'id': 'size-608', 'source': 'verified source', 'd_mm': 8,
+                   'D_mm': 22, 'B_mm': 7, 'inner_ring_outside_mm': None}
+        profile = {'name': 'Fine', 'nozzle_mm': 0.4, 'layer_mm': 0.1}
+        old = self.geometry.seat_snapshot.create(parameters={}, bearing={'source': 'old'},
+            profile={'name': 'Old profile'}, auto_flags={}, references={}, features={})
+        for previous in (None, [old]):
+            self.extrudes.createInput.side_effect = [self.tool_input, self.cut_input]
+            self.extrudes.add.side_effect = [self.tool, self.cut]
+            self.tool.isValid = True
+            with self.subTest(edit=bool(previous)), patch.object(self.geometry, '_fully_contained'), \
+                    patch.object(self.geometry.seat_storage, 'save') as save:
+                self.geometry.create_seats(self.design, self.face, [self.position], self.parameters,
+                    persist=True, previous_snapshots=previous, bearing=bearing, profile=profile,
+                    auto_flags={'relief_mm_auto': True})
+                record = save.call_args.args[1]
+                self.assertEqual(record['bearing'], bearing)
+                self.assertEqual(record['profile'], profile)
+                self.assertIsNot(record['profile'], profile)
+                self.assertTrue(record['auto_flags']['relief_mm_auto'])
+                if previous:
+                    self.assertEqual(record['seat_id'], old['seat_id'])
+
     def test_breakout_rejects_before_cut_and_removes_tool_and_sketch(self):
         with patch.object(self.geometry, '_fully_contained', side_effect=ValueError('breakout')):
             with self.assertRaisesRegex(ValueError, 'breakout'):

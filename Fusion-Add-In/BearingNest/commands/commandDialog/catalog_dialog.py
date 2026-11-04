@@ -1,0 +1,278 @@
+"""Catalog/profile controls in the existing three-tab command."""
+from copy import deepcopy
+from html import escape
+import math
+from pathlib import Path
+from uuid import uuid4
+import adsk.core
+from ... import catalog_profiles as model
+from ...strings import TEXT, PROFILE_FIELDS, BEARING_TEXT_FIELDS
+
+
+class CatalogDialog:
+    def __init__(self, seat_inputs, settings, seat):
+        self.seat = seat
+        self.fields = seat.fields
+        self.bearing = None
+        self.profile = deepcopy(model.DEFAULT_PROFILE)
+        self.last_auto = {}
+        self.load_error = None
+        try:
+            self.data = model.load()
+        except Exception as error:
+            self.data = model.defaults()
+            self.load_error = str(error)
+        self.profile = deepcopy(self.data['profiles'][0])
+        self._string(seat_inputs, 'catalog_search', TEXT['catalog_search'])
+        self._dropdown(seat_inputs, 'catalog_bearing', TEXT['catalog_bearing'])
+        self._dropdown(seat_inputs, 'print_profile', TEXT['print_profile'])
+        for field in model.DERIVED:
+            self._bool(seat_inputs, field + '_auto', TEXT[field + '_auto'], True)
+        self._bool(seat_inputs, 'profile_reset', TEXT['profile_reset'])
+        self.guidance = seat_inputs.addTextBoxCommandInput('profile_effective', '', '', 4, True)
+        self.guidance.isFullWidth = True
+        self._string(settings, 'custom_id', TEXT['custom_id'])
+        for field, label in BEARING_TEXT_FIELDS:
+            self._string(settings, 'custom_' + field, label)
+        self._value(settings, 'custom_inner_mm', TEXT['custom_inner_mm'], 'mm', 0)
+        self._bool(settings, 'bearing_load', TEXT['bearing_load'])
+        self._bool(settings, 'bearing_save', TEXT['bearing_save'])
+        self._bool(settings, 'bearing_delete', TEXT['bearing_delete'])
+        self._string(settings, 'profile_name', TEXT['profile_name'], self.profile['name'])
+        for field, label, units in PROFILE_FIELDS:
+            self._value(settings, 'profile_' + field, label, units, self.profile[field])
+        self._bool(settings, 'profile_save', TEXT['profile_save'])
+        self._bool(settings, 'profile_delete', TEXT['profile_delete'])
+        self._string(settings, 'settings_file', TEXT['settings_file'])
+        self._bool(settings, 'settings_import', TEXT['settings_import'])
+        self._bool(settings, 'settings_export', TEXT['settings_export'])
+        self.status = settings.addTextBoxCommandInput('catalog_status', '', '', 5, True)
+        self.status.isFullWidth = True
+        self._choices()
+        self._suggest()
+        self.auto_state = self.flags()
+        self._status(TEXT['settings_load_error'].format(error=escape(self.load_error))
+                     if self.load_error else TEXT['settings_location'].format(path=escape(str(model.settings_path()))))
+
+    def _string(self, inputs, identity, label, initial=''):
+        self.fields[identity] = inputs.addStringValueInput(identity, label, initial)
+
+    def _value(self, inputs, identity, label, units, value):
+        self.fields[identity] = inputs.addValueInput(identity, label, units,
+            adsk.core.ValueInput.createByString(f'{value:.12g} {units}'.strip()))
+
+    def _bool(self, inputs, identity, label, initial=False):
+        self.fields[identity] = inputs.addBoolValueInput(identity, label, True, '', initial)
+
+    def _dropdown(self, inputs, identity, label):
+        self.fields[identity] = inputs.addDropDownCommandInput(identity, label,
+            adsk.core.DropDownStyles.TextListDropDownStyle)
+
+    def _status(self, text):
+        self.status.formattedText = text
+
+    def _choices(self):
+        self.bearing_choices = {TEXT['manual_bearing']: None}
+        records = model.search(model.seed_bearings() + self.data['bearings'],
+                               self.fields['catalog_search'].value)
+        for record in records:
+            label = (f"{record.get('designation', 'Saved bearing')} | {record.get('d_mm')} x "
+                     f"{record.get('D_mm')} x {record.get('B_mm')} mm | "
+                     f"{record.get('manufacturer') or 'size alias'} [{record.get('id', 'snapshot')}]")
+            self.bearing_choices[label] = record
+        if self.bearing and self.bearing not in records:
+            # Keep the historical snapshot and the current library entry as
+            # separate choices, even when they share a stable catalog identity.
+            self.bearing_choices[TEXT['saved_bearing']] = self.bearing
+        self._fill('catalog_bearing', self.bearing_choices, self.bearing)
+        self.profile_choices = {f"{r['name']} [{r['id']}]": r for r in self.data['profiles']}
+        if self.profile not in self.profile_choices.values():
+            self.profile_choices[TEXT['saved_profile']] = self.profile
+        self._fill('print_profile', self.profile_choices, self.profile)
+
+    def _fill(self, identity, choices, selected):
+        items = self.fields[identity].listItems
+        items.clear()
+        for label, record in choices.items():
+            items.add(label, record == selected, '')
+            if record == selected:
+                setattr(self, '_selected_' + identity, label)
+
+    def flags(self):
+        return {field + '_auto': self.fields[field + '_auto'].value for field in model.DERIVED}
+
+    def _suggest(self, only=None, *, apply=True):
+        suggestions = model.suggested(self.profile)
+        for field in model.DERIVED:
+            if apply and (only is None or field == only) and self.fields[field + '_auto'].value:
+                value = suggestions[field]
+                self.last_auto[field] = value / 10
+                self.fields[field].expression = f'{value:.12g} mm'
+        self.guidance.formattedText = TEXT['effective_profile'].format(
+            name=escape(self.profile['name']), nozzle=self.profile['nozzle_mm'], layer=self.profile['layer_mm'],
+            relief=suggestions['relief_mm'], fillet=suggestions['fillet_mm'],
+            depth=suggestions['inner_depth_mm'], wall=suggestions['wall_warning_mm'],
+            rf=self.profile['relief_factor'], ff=self.profile['fillet_factor'], df=self.profile['inner_depth_factor'])
+
+    def restore(self, record):
+        """Use stored snapshots, never today's mutable library/defaults, on reopen."""
+        self.bearing = deepcopy(record.get('bearing', {})) or None
+        profile = record.get('profile', {})
+        try:
+            model.validate_profile(profile)
+            self.profile = deepcopy(profile)
+        except ValueError:
+            # Old manual records have no nozzle/layer data: preserve every effective value.
+            self.profile = deepcopy(model.DEFAULT_PROFILE)
+        for field in model.DERIVED:
+            enabled = record.get('auto_flags', {}).get(field + '_auto', False)
+            self.fields[field + '_auto'].value = enabled
+            self.last_auto[field] = self.fields[field].value if enabled else None
+        self._choices()
+        self._profile_editor()
+        # Display suggestions without applying them to historical geometry.
+        self.auto_state = self.flags()
+        self._suggest(apply=False)
+
+    def _profile_editor(self):
+        self.fields['profile_name'].value = self.profile['name']
+        for field, _, units in PROFILE_FIELDS:
+            self.fields['profile_' + field].expression = f'{self.profile[field]:.12g} {units}'.strip()
+
+    def _save(self, candidate):
+        if self.load_error:
+            raise ValueError(TEXT['repair_settings'])
+        model.save(candidate)
+        self.data = candidate
+
+    def _number(self, identity, length=True):
+        field = self.fields[identity]
+        if not field.isValidExpression:
+            raise ValueError(TEXT['invalid_settings_expression'])
+        return field.value * 10 if length else field.value
+
+    def process(self, identity):
+        """Called only from inputChanged with the parent's recursive-event guard set."""
+        if identity == 'catalog_search':
+            self._choices()
+        elif identity == 'catalog_bearing':
+            label = self.fields[identity].selectedItem.name
+            if label == self._selected_catalog_bearing:
+                return  # Fusion can deliver delayed events for programmatic selections.
+            self._selected_catalog_bearing = label
+            self.bearing = deepcopy(self.bearing_choices[label])
+            if self.bearing:
+                for key, field in (('d_mm', 'bore_mm'), ('D_mm', 'outside_mm'), ('B_mm', 'width_mm')):
+                    self.fields[field].expression = f'{self.bearing[key]:.12g} mm'
+                self.seat._sync_inner_diameter()
+        elif identity == 'print_profile':
+            label = self.fields[identity].selectedItem.name
+            if label == self._selected_print_profile:
+                return
+            self._selected_print_profile = label
+            self.profile = deepcopy(self.profile_choices[label])
+            self._profile_editor()
+            self._suggest()
+        elif identity in model.DERIVED:
+            field = self.fields[identity]
+            if (not field.isValidExpression or self.last_auto.get(identity) is None or
+                    not math.isclose(field.value, self.last_auto[identity], rel_tol=0, abs_tol=1e-10)):
+                self.fields[identity + '_auto'].value = False
+                self.auto_state[identity + '_auto'] = False
+        elif identity.endswith('_auto') and identity[:-5] in model.DERIVED:
+            enabled = self.fields[identity].value
+            if self.auto_state.get(identity) == enabled:
+                return
+            self.auto_state[identity] = enabled
+            if enabled:
+                self._suggest(only=identity[:-5])
+        elif identity == 'profile_reset' and self.fields[identity].value:
+            self.fields[identity].value = False
+            for field in model.DERIVED:
+                self.fields[field + '_auto'].value = True
+            self.auto_state = self.flags()
+            self._suggest()
+        elif identity in ('bearing_load', 'bearing_save', 'bearing_delete', 'profile_save',
+                          'profile_delete', 'settings_import', 'settings_export') and self.fields[identity].value:
+            self.fields[identity].value = False
+            try:
+                self._action(identity)
+                self._status(TEXT['settings_saved'])
+            except Exception as error:
+                self._status(escape(str(error)))
+
+    def _action(self, identity):
+        candidate = deepcopy(self.data)
+        if identity == 'bearing_load':
+            if not self.bearing:
+                raise ValueError(TEXT['choose_bearing'])
+            record = self.bearing
+            # Built-ins are copied to new custom identities rather than overwritten.
+            self.fields['custom_id'].value = record.get('id', '') if record.get('id', '').startswith('custom-') else ''
+            for field, _ in BEARING_TEXT_FIELDS:
+                self.fields['custom_' + field].value = record.get(field, '')
+            self.fields['custom_inner_mm'].expression = f"{record.get('inner_ring_outside_mm') or 0:.12g} mm"
+            return
+        if identity == 'bearing_save':
+            record = {field: self.fields['custom_' + field].value.strip() for field, _ in BEARING_TEXT_FIELDS}
+            record['id'] = self.fields['custom_id'].value.strip() or 'custom-' + str(uuid4())
+            if not record['id'].startswith('custom-'):
+                raise ValueError(TEXT['custom_identity_required'])
+            for key, field in (('d_mm', 'bore_mm'), ('D_mm', 'outside_mm'), ('B_mm', 'width_mm')):
+                record[key] = self._number(field)
+            inner = self._number('custom_inner_mm')
+            record['inner_ring_outside_mm'] = None if inner == 0 else inner
+            model.validate_bearing(record)
+            candidate['bearings'] = [r for r in candidate['bearings'] if r['id'] != record['id']] + [record]
+            self._save(candidate)
+            self.bearing = deepcopy(record)
+            self.fields['custom_id'].value = record['id']
+        elif identity == 'bearing_delete':
+            identity_to_delete = self.fields['custom_id'].value.strip()
+            if not any(r['id'] == identity_to_delete for r in candidate['bearings']):
+                raise ValueError(TEXT['custom_identity_required'])
+            candidate['bearings'] = [r for r in candidate['bearings'] if r['id'] != identity_to_delete]
+            self._save(candidate)
+            # Retain this dialog's detached snapshot, including during an edit.
+            self.fields['custom_id'].value = ''
+        elif identity == 'profile_save':
+            name = self.fields['profile_name'].value.strip()
+            existing = next((r for r in candidate['profiles'] if r['name'].casefold() == name.casefold()), None)
+            record = dict(id=existing['id'] if existing else 'profile-' + str(uuid4()), name=name)
+            for field, _, units in PROFILE_FIELDS:
+                record[field] = self._number('profile_' + field, units == 'mm')
+            model.validate_profile(record)
+            model.suggested(record)
+            candidate['profiles'] = [r for r in candidate['profiles'] if r['id'] != record['id']] + [record]
+            self._save(candidate)
+            self.profile = deepcopy(record)
+            self._suggest()
+        elif identity == 'profile_delete':
+            if not any(r['id'] == self.profile.get('id') for r in candidate['profiles']):
+                raise ValueError(TEXT['choose_local_profile'])
+            candidate['profiles'] = [r for r in candidate['profiles'] if r['id'] != self.profile['id']]
+            self._save(candidate)
+            # Deleting a library entry must not recalculate the active seat.
+        elif identity in ('settings_import', 'settings_export'):
+            filename = self.fields['settings_file'].value.strip()
+            path = Path(filename)
+            if not filename or not path.is_absolute() or path.suffix.lower() != '.json':
+                raise ValueError(TEXT['absolute_json_path'])
+            if path.resolve() == model.settings_path().resolve():
+                raise ValueError(TEXT['separate_transfer_path'])
+            if identity == 'settings_export':
+                if path.exists():
+                    raise ValueError(TEXT['export_exists'])
+                model.save(self.data, path)
+                return
+            imported = model.load(path) if path.is_file() else None
+            if imported is None:
+                raise ValueError(TEXT['import_missing'])
+            # Merge validated records by identity; never partially import a document.
+            for section in ('bearings', 'profiles'):
+                merged = {r['id']: r for r in candidate[section]}
+                merged.update({r['id']: r for r in imported[section]})
+                candidate[section] = list(merged.values())
+            self._save(candidate)
+            # Existing dialog values and profile snapshots are deliberately unchanged.
+        self._choices()

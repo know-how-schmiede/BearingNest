@@ -10,6 +10,7 @@ class SeatDialog:
     def __init__(self, inputs, app):
         self.app = app
         self.fields = {}
+        self.catalog = None
         self._refreshing = False
         self._inner_diameter_auto = True
         self._last_auto_inner_value = None
@@ -143,16 +144,27 @@ class SeatDialog:
             return
         self._last_auto_inner_value = bore.value
         if not diameter.isValidExpression or not math.isclose(diameter.value, bore.value, rel_tol=0, abs_tol=1e-10):
+            was_refreshing = self._refreshing
             self._refreshing = True
             try:
                 diameter.expression = f'{bore.value * 10:.12g} mm'
             finally:
-                self._refreshing = False
+                self._refreshing = was_refreshing
 
     def changed(self, args):
         if self._refreshing or args.input.id not in self.fields:
             return
         self.geometry_error = None
+        if self.catalog:
+            self._refreshing = True
+            try:
+                self.catalog.process(args.input.id)
+            except Exception as error:
+                self.geometry_error = str(error)
+                self._set_status(escape(str(error)))
+                return
+            finally:
+                self._refreshing = False
         if args.input.id == 'seat_batch':
             self._editing_records = self._batches.get(self.fields['seat_batch'].selectedItem.name)
             editing = bool(self._editing_records)
@@ -178,6 +190,8 @@ class SeatDialog:
                     self._inner_diameter_auto = self._editing_records[0]['auto_flags'].get(
                         'inner_diameter_auto', math.isclose(values.inner_diameter_mm, values.bore_mm))
                     self._last_auto_inner_value = values.bore_mm / 10 if self._inner_diameter_auto else None
+                    if self.catalog:
+                        self.catalog.restore(self._editing_records[0])
             except Exception as error:
                 self.geometry_error = str(error)
                 self._set_status(escape(str(error)))
@@ -258,6 +272,11 @@ class SeatDialog:
     def _apply(self, request, *, persist):
         from ... import seat_geometry
         options = {'auto_flags': {'inner_diameter_auto': self._inner_diameter_auto}} if persist else {}
+        if persist and self.catalog:
+            from ...catalog_profiles import bearing_snapshot
+            options['auto_flags'].update(self.catalog.flags())
+            options['bearing'] = bearing_snapshot(self.catalog.bearing, request[-1])
+            options['profile'] = self.catalog.profile
         if self._editing_records:
             from ... import seat_edit
             return seat_edit.update(request[0], self._editing_records, request[-1], persist=persist, **options)

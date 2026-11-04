@@ -1,5 +1,7 @@
 # Seat persistence prototype
 
+Version 0.3.0 adds [catalog/profile snapshots and local settings](CATALOG_AND_PROFILES.md). New seats copy effective bearing dimensions, original catalog dimensions, source metadata, named profile data and the three derived-field Auto flags. Reopening uses stored values without recalculating from the current library. Older records preserve their geometry with these flags defaulting to Manual. Seat schema remains version 1 because these are additions inside existing object sections; settings files have an independent schema version 1.
+
 Status: the snapshot codec and Fusion API adapter are now connected to the creation command. Successful execute writes one snapshot to each direct cut extrusion; preview does not persist one. Version 0.2.0 adds discovery, dialog reloading and constrained whole-batch editing. Native save/reopen and edit acceptance in Fusion is not yet verified.
 
 ## Implemented behavior

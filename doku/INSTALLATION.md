@@ -73,7 +73,7 @@ Containment compares the actual contour tool with the selected body using tempor
 
 The owner reported no observed errors in a general 0.1.8 trial on 2026-11-03. Specific cases, OS/Fusion build and macOS coverage were not supplied. These new 0.2.0 checks remain open.
 
-1. Update the complete add-in folder and confirm BearingNest 0.2.0. In a disposable root-component block, choose **Create new seats** and select one face and two visible sketch points.
+1. Update the complete add-in folder and confirm the current BearingNest version (0.3.0 includes these 0.2.0 operations). In a disposable root-component block, choose **Create new seats** and select one face and two visible sketch points.
 2. Start with chamfer 0 mm to repeat the accepted baseline. Try 0.2, 0.4 and 0.6 mm with feasible contour settings. Preview the full rim, including relief transitions. Measure equal axial/radial legs and unchanged seat-floor depth. Cancel and confirm no geometry remains. Repeat on bottom-facing/inclined planar faces.
 3. Create a valid batch with chamfer and optional shaft/relief. Check healthy features, one target body and no validation tools or chamfer-envelope sketch left behind. An impossible chamfer must reject the whole batch.
 4. Test near a body edge and near another seat. The conservative cylinder (diameter contact + 2 * relief + 2 * chamfer, depth chamfer) must reject breakout/overlap before cutting. It can reject placements that the exact chamfer could fit; reduce chamfer or increase spacing.
@@ -87,6 +87,8 @@ The owner reported no observed errors in a general 0.1.8 trial on 2026-11-03. Sp
 Editing rebuilds only the last complete batch without downstream features or timeline groups. Placement changes, native timeline double-click editing and downstream-reference repair are outside this proof. See [persistence and editing](PERSISTENCE_PROTOTYPE.md).
 
 ## Local checks
+
+Version 0.3.0 also needs the [catalog/profile acceptance checks](CATALOG_AND_PROFILES.md#acceptance-in-fusion-pending). Its development does not close the 0.2.0 live geometry/edit gate.
 
 Run from the repository root:
 

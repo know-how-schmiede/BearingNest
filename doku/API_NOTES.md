@@ -42,6 +42,8 @@ Run the [manual geometry acceptance checks](INSTALLATION.md). Verify the new sha
 
 ## Official references
 
+The 0.3.0 catalog/profile controls use the existing tabs and command events. Text editors use [CommandInputs.addStringValueInput](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_CommandInputs_addStringValueInput.htm) and writable [StringValueCommandInput.value](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_StringValueCommandInput_value.htm). Search refreshes use [ListItems.clear/add](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_ListItems.htm). Profile dimensions use mm inputs; factors use unitless [value inputs](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_CommandInputs_addValueInput.htm). Model validation and local JSON storage are separate from Fusion. Control writes occur in construction/inputChanged, never validateInputs. Native dialog behavior remains unverified.
+
 - [Command transactions, preview rollback and reuse](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/Commands_UM.htm)
 - [CommandEventArgs: execute failure and preview result](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_CommandEventArgs.htm)
 - [Selection filters](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/core_SelectionCommandInput.htm)

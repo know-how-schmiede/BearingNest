@@ -6,6 +6,7 @@ from ... import config
 from ...version import VERSION
 from ...strings import TEXT
 from .seat_dialog import SeatDialog
+from .catalog_dialog import CatalogDialog
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -98,6 +99,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     settings = inputs.addTabCommandInput('settings_tab', TEXT['settings']).children
     _text(settings, 'settings_status', 'settings_status', 4)
     _text(settings, 'profile_guidance', 'profile_guidance', 5)
+    dialog._refreshing = True
+    try:
+        dialog.catalog = CatalogDialog(seat, settings, dialog)
+    finally:
+        dialog._refreshing = False
 
     about = inputs.addTabCommandInput('about_tab', TEXT['about']).children
     logo = about.addImageCommandInput(

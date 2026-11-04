@@ -321,7 +321,8 @@ def _hide_position_fills(positions, changed):
                 sketch.areProfilesShown = False
 
 
-def create_seats(design, face, positions, parameters, *, persist, previous_snapshots=None, auto_flags=None):
+def create_seats(design, face, positions, parameters, *, persist, previous_snapshots=None, auto_flags=None,
+                 bearing=None, profile=None):
     """Validate every position and pair before the first cut, in one command transaction."""
     parameters.validate()
     positions = list(positions)
@@ -410,19 +411,20 @@ def create_seats(design, face, positions, parameters, *, persist, previous_snaps
         if persist:
             for index, (cut, item) in enumerate(zip(cuts, prepared)):
                 snapshot = seat_snapshot.create(parameters=parameters.snapshot_values(),
-                    bearing={'D_mm': parameters.outside_mm, 'B_mm': parameters.width_mm,
+                    bearing=bearing if bearing is not None else {'D_mm': parameters.outside_mm, 'B_mm': parameters.width_mm,
                              'd_mm': parameters.bore_mm if parameters.shaft_mode != 'Off' else None,
                              'inner_ring_outside_mm': None, 'source': 'manual'},
-                    profile={'name': 'Manual prototype values'}, auto_flags=auto_flags or {},
+                    profile=profile if profile is not None else {'name': 'Manual prototype values'}, auto_flags=auto_flags or {},
                     references=item['references'],
                     features=item['features'])
                 snapshot['batch_id'] = batch_id
                 if previous_snapshots:
                     old = previous_snapshots[index]
                     snapshot = seat_snapshot.revise(old, parameters=snapshot['parameters'],
-                        bearing=dict(old['bearing'], D_mm=parameters.outside_mm,
+                        bearing=bearing if bearing is not None else dict(old['bearing'], D_mm=parameters.outside_mm,
                             B_mm=parameters.width_mm,
                             d_mm=parameters.bore_mm if parameters.shaft_mode != 'Off' else None),
+                        profile=old['profile'] if profile is None else profile,
                         auto_flags=old['auto_flags'] if auto_flags is None else dict(old['auto_flags'], **auto_flags),
                         references=snapshot['references'], features=snapshot['features'])
                     snapshot['batch_id'] = batch_id
