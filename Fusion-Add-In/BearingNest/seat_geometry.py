@@ -5,6 +5,8 @@ import adsk.core
 import adsk.fusion
 from . import seat_snapshot, seat_storage
 from .seat_parameters import mm_to_cm, arc_midpoint
+from .seat_feedback import BatchValidationError, new_feedback, add_message
+from .strings import TEXT
 
 
 def placement(design, face, point_entity):
@@ -43,6 +45,26 @@ def placement(design, face, point_entity):
     if face.isParamReversed:
         normal.scaleBy(-1)
     return point, normal
+
+
+def _marker_location(face, position):
+    """Best-effort world location for a rejected placement; never a validation bypass."""
+    try:
+        plane = adsk.core.Plane.cast(face.geometry)
+        if plane is None or getattr(position, 'assemblyContext', None) is not None:
+            return None
+        if isinstance(position, adsk.fusion.SketchPoint):
+            point = position.worldGeometry
+        elif isinstance(position, adsk.fusion.BRepVertex):
+            point = position.geometry
+        elif isinstance(position, adsk.fusion.BRepEdge):
+            circle = adsk.core.Circle3D.cast(position.geometry)
+            point = circle.center if circle is not None else None
+        else:
+            return None
+        return (point, plane.normal.copy()) if point is not None else None
+    except Exception:
+        return None
 
 
 def _fully_contained(manager, tool, target, inward):
@@ -321,10 +343,64 @@ def _hide_position_fills(positions, changed):
                 sketch.areProfilesShown = False
 
 
+def _wall_warnings(manager, body, placements, prepared, parameters, threshold_mm, feedback):
+    """Conservative enclosing-cylinder margin probes; advisory, never a cut gate.
+
+    Probes start at their intended opening plane and extend inward only. A native
+    Through All shaft's exit is deliberately excluded from the floor check.
+    """
+    for index, (point, outward, _) in enumerate(placements, 1):
+        operations = [(parameters.contact_mm / 2 + parameters.relief_mm, parameters.depth_mm, 0)]
+        if parameters.chamfer_mm:
+            operations.append((parameters.contact_mm / 2 + parameters.relief_mm + parameters.chamfer_mm,
+                               parameters.chamfer_mm, 0))
+        if parameters.shaft_mode == 'Blind':
+            operations.append((parameters.shaft_diameter_mm / 2, parameters.blind_depth_mm, 0))
+        if parameters.has_inner_relief:
+            operations.append((parameters.inner_diameter_mm / 2, parameters.inner_depth_mm, parameters.depth_mm))
+        inward = outward.copy()
+        inward.scaleBy(-1)
+        for radius, depth, start in operations:
+            try:
+                def at(distance_mm):
+                    offset = mm_to_cm(distance_mm)
+                    return adsk.core.Point3D.create(point.x + inward.x * offset,
+                        point.y + inward.y * offset, point.z + inward.z * offset)
+                expanded = mm_to_cm(radius + threshold_mm)
+                probe = manager.createCylinderOrCone(at(start), expanded, at(start + depth + threshold_mm), expanded)
+                if probe is None:
+                    raise RuntimeError('Could not create the wall margin probe.')
+                try:
+                    _fully_contained(manager, probe, body, inward)
+                except ValueError:
+                    add_message(feedback, 'warnings', [index], TEXT['wall_body_warning'].format(
+                        index=index, threshold=threshold_mm))
+                for other in prepared:
+                    if other['index'] == index:
+                        continue
+                    try:
+                        for cut in [other, *other['extras']]:
+                            _check_overlap(manager, probe, cut['envelope'])
+                    except ValueError:
+                        first, second = sorted((index, other['index']))
+                        add_message(feedback, 'warnings', [first, second], TEXT['wall_pair_warning'].format(
+                            first=first, second=second, threshold=threshold_mm))
+            except Exception:
+                # Advisory failure is visible, but cannot reject valid cut geometry.
+                add_message(feedback, 'warnings', [index], TEXT['wall_check_unavailable'].format(index=index))
+
+
 def create_seats(design, face, positions, parameters, *, persist, previous_snapshots=None, auto_flags=None,
-                 bearing=None, profile=None):
+                 bearing=None, profile=None, feedback=None, wall_threshold_mm=0):
     """Validate every position and pair before the first cut, in one command transaction."""
     parameters.validate()
+    if not math.isfinite(wall_threshold_mm) or wall_threshold_mm < 0:
+        raise ValueError('Wall warning threshold must be finite and nonnegative.')
+    if feedback is None:
+        feedback = new_feedback()
+    else:
+        feedback.clear()
+        feedback.update(new_feedback())
     positions = list(positions)
     if not positions:
         raise ValueError('Select at least one seat position.')
@@ -334,17 +410,30 @@ def create_seats(design, face, positions, parameters, *, persist, previous_snaps
                 if previous_snapshots else str(uuid4()))
     # Resolve all placements and references before model topology can change.
     placements = []
+    errors = []
     for index, position in enumerate(positions, 1):
         try:
             point, outward = placement(design, face, position)
         except Exception as error:
-            raise ValueError(f'Position {index}: {error}') from error
-        for previous_index, (previous, _, _) in enumerate(placements, 1):
-            if point.distanceTo(previous) < 1e-6:
-                raise ValueError(f'Positions {previous_index} and {index} have the same center.')
+            message = f'Position {index}: {error}'
+            errors.append(message)
+            add_message(feedback, 'issues', [index], message)
+            location = _marker_location(face, position)
+            if location is not None:
+                feedback['placements'][index] = location
+            placements.append(None)
+            continue
+        feedback['placements'][index] = (point, outward)
+        for previous_index, previous in enumerate(placements, 1):
+            if previous is not None and point.distanceTo(previous[0]) < 1e-6:
+                message = f'Positions {previous_index} and {index} have the same center.'
+                errors.append(message)
+                add_message(feedback, 'issues', [previous_index, index], message)
         references = {'face': face.entityToken, 'position': position.entityToken,
                       'body': face.body.entityToken}
         placements.append((point, outward, references))
+    if errors:
+        raise BatchValidationError(errors)
 
     created, prepared, cuts, shading = [], [], [], []
     manager = adsk.fusion.TemporaryBRepManager.get()
@@ -353,17 +442,31 @@ def create_seats(design, face, positions, parameters, *, persist, previous_snaps
             try:
                 item = _prepare_seat(design, face, point, outward, parameters, created)
                 item['extras'] = _prepare_extras(design, face, point, outward, parameters, created)
-                for previous_index, previous in enumerate(prepared, 1):
+                for previous in prepared:
+                    previous_index = previous['index']
                     try:
                         for first in [previous, *previous['extras']]:
                             for second in [item, *item['extras']]:
                                 _check_overlap(manager, first['envelope'], second['envelope'])
                     except Exception as error:
-                        raise ValueError(f'Positions {previous_index} and {index}: {error}') from error
+                        message = f'Positions {previous_index} and {index}: {error}'
+                        errors.append(message)
+                        add_message(feedback, 'issues', [previous_index, index], message)
                 item['references'] = references
+                item['index'] = index
                 prepared.append(item)
-            except Exception as error:
-                raise ValueError(f'Position {index}: {error}') from error
+            except ValueError as error:
+                message = f'Position {index}: {error}'
+                errors.append(message)
+                add_message(feedback, 'issues', [index], message)
+        if errors:
+            raise BatchValidationError(errors)
+        if wall_threshold_mm:
+            try:
+                _wall_warnings(manager, face.body, placements, prepared, parameters, wall_threshold_mm, feedback)
+            except Exception:
+                for index in range(1, len(placements) + 1):
+                    add_message(feedback, 'warnings', [index], TEXT['wall_check_unavailable'].format(index=index))
 
         # Delete validation extrusions BEFORE direct cuts, avoiding retained coplanar tool faces.
         for item in reversed(prepared):

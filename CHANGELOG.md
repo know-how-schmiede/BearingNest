@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-11-04
+
+- Record the owner's confirmation that the 0.3.0 library and editing existing seats work, including editing multiple seats together. Embed the three new 0.3.0 screenshots and the earlier 0.1.7 clearance screenshot with version-specific captions. Detailed lifecycle/profile/platform cases remain separate.
+- Enable Preview by default at the owner's request; retain the ability to switch it off and always rebuild on execute.
+- Collect independent placement/containment errors and conflicting pairs before cutting. Show approximate red invalid-position markers, blue other-position markers in rejected batches and selection-order textual reasons. Reject the whole batch without committing a valid subset.
+- Add profile-based advisory wall/floor/inter-seat margin probes and amber markers. Temporary enclosing cylinders are conservative and do not measure exact minimum thickness. Intentional Through All exits and lateral through-shaft walls are excluded from wall probes. Advisory failures warn without blocking valid cuts.
+- Own transient graphics per dialog and remove them on changes, Preview off, execute, destroy/cancel and stop; retain failed-cleanup ownership for retry. Text remains authoritative if rendering is unavailable.
+- Synchronize version, documentation and acceptance procedures. New native graphics, warning behavior and invalid-batch/lifecycle acceptance remain pending.
+
+Validation: 128 automated tests pass. Checks cover batch rejection/cleanup, conservative probes, units and depth references, marker geometry/colors/ownership and preview lifecycle. The owner-tested 0.3.0 screenshots do not establish 0.4.0 behavior.
+
 ## 0.3.0 - 2026-11-04
 
 - Add searchable 623/624/625/608 size aliases with principal dimensions verified against the SKF NILOS-Rings bearing table. Unknown ring geometry stays null; RC/MR candidates remain pending verification.

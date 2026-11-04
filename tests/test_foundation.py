@@ -205,7 +205,7 @@ class FoundationTests(unittest.TestCase):
         with patch.object(self.entry.CatalogDialog.__init__.__globals__['model'], 'load',
                           side_effect=lambda: self.entry.CatalogDialog.__init__.__globals__['model'].defaults()):
             self.entry.command_created(SimpleNamespace(command=command))
-        dialog = next(callback.__self__ for callback in self.callbacks
+        dialog = next(callback.__self__ for callback in reversed(self.callbacks)
                       if callback.__name__ == 'execute')
         return command, inputs, dialog
 
@@ -218,7 +218,7 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(dialog.fields['seat_position'].limits, (1, 0))
         self.assertEqual(dialog.fields['seat_face'].filters, ['PlanarFaces'])
         self.assertIn('CircularEdges', dialog.fields['seat_position'].filters)
-        self.assertFalse(dialog.fields['seat_preview'].value)
+        self.assertTrue(dialog.fields['seat_preview'].value)
         self.assertTrue(self.entry.local_handlers)
         self.entry.command_destroy(None)
         self.assertFalse(self.entry.local_handlers)
@@ -475,9 +475,9 @@ class FoundationTests(unittest.TestCase):
         self.assertTrue(args.executeFailed)
         self.assertEqual(args.executeFailedMessage, 'edit failure')
         edit.update.assert_called_once_with(1, dialog._editing_records, 4, persist=True,
-            auto_flags={'inner_diameter_auto': True})
+            auto_flags={'inner_diameter_auto': True}, feedback=dialog.feedback)
 
-    def test_preview_is_opt_in_and_cannot_be_committed_without_execute(self):
+    def test_preview_is_on_by_default_can_be_disabled_and_requires_execute(self):
         command, inputs, dialog = self.make_dialog()
         geometry = ModuleType('foundation.seat_geometry')
         geometry.create_seats = Mock()
@@ -485,12 +485,14 @@ class FoundationTests(unittest.TestCase):
         parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
         with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
                 patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            dialog.fields['seat_preview'].value = False
             dialog.preview(args)
             geometry.create_seats.assert_not_called()
             dialog.fields['seat_preview'].value = True
             dialog.preview(args)
         self.assertFalse(args.isValidResult)
-        geometry.create_seats.assert_called_once_with(1, 2, [3], parameters, persist=False)
+        geometry.create_seats.assert_called_once_with(1, 2, [3], parameters, persist=False,
+            feedback=dialog.feedback, wall_threshold_mm=0.8)
 
     def test_dialog_converts_internal_length_and_angle_units_before_model_validation(self):
         command, inputs, dialog = self.make_dialog()
@@ -577,6 +579,96 @@ class FoundationTests(unittest.TestCase):
         self.assertIsNone(dialog.geometry_error)
         self.assertTrue(valid.areInputsValid)
         self.assertFalse(args.isValidResult)
+
+    def test_wall_warning_preview_remains_valid_and_draws_advisory_markers(self):
+        _, _, dialog = self.make_dialog()
+        dialog._graphics = Mock()
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7, relief_mm=1.2, chamfer_mm=0)
+        geometry = ModuleType('foundation.seat_geometry')
+        def create(*args, **kwargs):
+            kwargs['feedback']['warnings'][1] = ['Possible thin wall; creation allowed.']
+        geometry.create_seats = Mock(side_effect=create)
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            dialog.preview(SimpleNamespace())
+            validation = SimpleNamespace(areInputsValid=False)
+            dialog.validate(validation)
+        self.assertTrue(validation.areInputsValid)
+        self.assertIsNone(dialog.geometry_error)
+        self.assertIn('Advisory wall warnings', dialog.status.formattedText)
+        dialog._graphics.show.assert_called_once()
+        self.assertEqual(dialog._graphics.show.call_args.args[:2], (1, dialog.feedback))
+        self.assertAlmostEqual(dialog._graphics.show.call_args.args[2], 12.15)
+
+    def test_invalid_preview_blocks_batch_and_clears_markers_on_correction(self):
+        _, _, dialog = self.make_dialog()
+        dialog._graphics = Mock()
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7, relief_mm=1.2, chamfer_mm=0)
+        geometry = ModuleType('foundation.seat_geometry')
+        def create(*args, **kwargs):
+            kwargs['feedback']['issues'][2] = ['Position 2: breakout']
+            raise ValueError('Position 2: breakout')
+        geometry.create_seats = Mock(side_effect=create)
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, 2, [3, 4], parameters)):
+            dialog.preview(SimpleNamespace())
+            validation = SimpleNamespace(areInputsValid=True)
+            dialog.validate(validation)
+            self.assertFalse(validation.areInputsValid)
+            self.assertIn('Position 2', dialog.status.formattedText)
+            dialog._graphics.show.assert_called_once()
+            self.change(dialog, 'rotation_degrees')
+        self.assertIsNone(dialog.geometry_error)
+        self.assertFalse(dialog.feedback['issues'])
+        self.assertEqual(dialog._graphics.clear.call_count, 2)
+
+    def test_disabling_preview_removes_markers_without_touching_the_model(self):
+        _, _, dialog = self.make_dialog()
+        dialog._graphics = Mock()
+        dialog.feedback['issues'][1] = ['Old error']
+        dialog.fields['seat_preview'].value = False
+        with patch.object(dialog, '_request') as request:
+            dialog.preview(SimpleNamespace())
+        request.assert_not_called()
+        dialog._graphics.clear.assert_called_once()
+        self.assertFalse(dialog.feedback['issues'])
+
+    def test_marker_rendering_failure_keeps_warning_only_geometry_valid(self):
+        _, _, dialog = self.make_dialog()
+        dialog._graphics = Mock()
+        dialog._graphics.show.side_effect = RuntimeError('Graphics not available')
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7, relief_mm=1.2, chamfer_mm=0)
+        geometry = ModuleType('foundation.seat_geometry')
+        def create(*args, **kwargs):
+            kwargs['feedback']['warnings'][1] = ['Possible wall warning']
+        geometry.create_seats = Mock(side_effect=create)
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            dialog.preview(SimpleNamespace())
+            validation = SimpleNamespace(areInputsValid=False)
+            dialog.validate(validation)
+        self.assertTrue(validation.areInputsValid)
+        self.assertIn('Preview markers unavailable', dialog.status.formattedText)
+        self.assertIn('Possible wall warning', dialog.status.formattedText)
+
+    def test_destroy_and_stop_release_owned_preview_graphics(self):
+        for close in (self.entry.command_destroy, lambda args: self.entry.stop()):
+            _, _, dialog = self.make_dialog()
+            dialog._graphics = Mock()
+            close(None)
+            dialog._graphics.clear.assert_called_once()
+            self.assertFalse(self.entry._dialogs)
+
+    def test_graphics_cleanup_failure_is_retained_for_retry(self):
+        _, _, dialog = self.make_dialog()
+        dialog._graphics = Mock()
+        dialog._graphics.clear.side_effect = RuntimeError('Marker cleanup failed')
+        with self.assertRaisesRegex(RuntimeError, 'Marker cleanup failed'):
+            self.entry.command_destroy(None)
+        self.assertIn(dialog, self.entry._dialogs)
+        dialog._graphics.clear.side_effect = None
+        self.entry.command_destroy(None)
+        self.assertFalse(self.entry._dialogs)
 
     def test_optional_clearance_controls_follow_modes_outside_validation(self):
         command, inputs, dialog = self.make_dialog()

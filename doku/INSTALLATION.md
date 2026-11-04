@@ -20,7 +20,7 @@ During inspection on 2026-11-03, the running add-in referenced a separate copy a
 
 ## First geometry trial
 
-The owner confirmed preview and creation working in 0.1.5; the [four screenshots](SCREENSHOTS.md) record that baseline. For the new 0.1.6 optional shaft/inner-ring operations, follow the [clearance test guide](SHAFT_AND_RELIEF.md). Keep Shaft opening set to Off to repeat the seat-only trial below.
+The owner confirmed preview/creation in 0.1.5, shaft/relief in 0.1.7, and library use plus existing-seat/batch editing in 0.3.0. [Screenshots](SCREENSHOTS.md) record these versions. Follow the [clearance test guide](SHAFT_AND_RELIEF.md) and the new [0.4.0 preview/wall acceptance procedure](PREVIEW_AND_WALLS.md#acceptance-in-fusion-pending). Keep Shaft opening set to Off to repeat the seat-only trial below.
 
 Use a disposable design. These steps are an acceptance procedure, not a report of completed live testing.
 
@@ -29,9 +29,9 @@ Use a disposable design. These steps are an acceptance procedure, not a report o
 3. Open BearingNest. Select the block's top face and the sketch point.
 4. Use the manual example values: outside diameter 22 mm, bearing width 7 mm, diameter correction −0.10 mm, axial correction 0 mm, 5 lands, contact angle 30°, rotation 0°, relief depth 1.2 mm, radius 0.4 mm.
 5. Check the displayed effective contact diameter (21.9 mm) and seat depth (7 mm).
-6. Enable **Preview**. Check that the contour cuts inward, with five contact lands and rounded transitions.
+6. **Preview** starts enabled in 0.4.0. Check that the contour cuts inward, with five contact lands and rounded transitions. Toggle it off/on and verify the preview is removed/rebuilt.
 7. Change a dimension and check that the preview rebuilds. Cancel and confirm that no new sketch, tool body or cut remains.
-8. Reopen, repeat and click **Create Seats**. Expect a hidden contour sketch and a direct cut extrusion per seat, leaving one body. Validation tool extrusions are deleted before cutting and do not remain in the timeline.
+8. Reopen, repeat and click **Apply Seats**. Expect a hidden contour sketch and a direct cut extrusion per seat, leaving one body. Validation tool extrusions are deleted before cutting and do not remain in the timeline.
 9. Verify geometry dimensions. Undo once: the entire command should disappear. Redo and inspect the result.
 10. Save/reopen a test design and verify its feature attributes using the Fusion API before claiming persistence acceptance. Version 0.2.0 adds an edit/reopen list; follow the acceptance procedure below.
 
@@ -71,9 +71,9 @@ Containment compares the actual contour tool with the selected body using tempor
 
 ## 0.2.0 chamfer and edit acceptance
 
-The owner reported no observed errors in a general 0.1.8 trial on 2026-11-03. Specific cases, OS/Fusion build and macOS coverage were not supplied. These new 0.2.0 checks remain open.
+The owner reported no observed errors in a general 0.1.8 trial on 2026-11-03, then confirmed existing-seat and multi-seat editing in the 0.3.0 trial on 2026-11-04. Detailed chamfer, save/reopen, failure, cancel and undo/redo cases and the Fusion build were not supplied. Remaining checks below are not all established by that general feedback.
 
-1. Update the complete add-in folder and confirm the current BearingNest version (0.3.0 includes these 0.2.0 operations). In a disposable root-component block, choose **Create new seats** and select one face and two visible sketch points.
+1. Update the complete add-in folder and confirm the current BearingNest version (0.4.0 includes these 0.2.0 operations). In a disposable root-component block, choose **Create new seats** and select one face and two visible sketch points.
 2. Start with chamfer 0 mm to repeat the accepted baseline. Try 0.2, 0.4 and 0.6 mm with feasible contour settings. Preview the full rim, including relief transitions. Measure equal axial/radial legs and unchanged seat-floor depth. Cancel and confirm no geometry remains. Repeat on bottom-facing/inclined planar faces.
 3. Create a valid batch with chamfer and optional shaft/relief. Check healthy features, one target body and no validation tools or chamfer-envelope sketch left behind. An impossible chamfer must reject the whole batch.
 4. Test near a body edge and near another seat. The conservative cylinder (diameter contact + 2 * relief + 2 * chamfer, depth chamfer) must reject breakout/overlap before cutting. It can reject placements that the exact chamfer could fit; reduce chamfer or increase spacing.

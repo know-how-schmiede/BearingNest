@@ -19,6 +19,7 @@ RESOURCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reso
 ICON_FOLDER = os.path.join(RESOURCE_FOLDER, 'toolbar', '')
 local_handlers = []
 _definition_handlers = []
+_dialogs = []
 
 
 def _panel(panel_id=PANEL_ID):
@@ -69,6 +70,7 @@ def stop():
         definition.deleteMe()
     _definition_handlers.clear()
     local_handlers.clear()
+    _clear_dialogs()
 
 
 def _text(inputs, identity, key, rows):
@@ -89,6 +91,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     seat = inputs.addTabCommandInput('bearing_seat_tab', TEXT['bearing_seat']).children
     _text(seat, 'foundation_status', 'foundation_status', 3)
     dialog = SeatDialog(seat, app)
+    _dialogs.append(dialog)
     _text(seat, 'geometry_status', 'geometry_status', 3)
     for event, callback in ((command.validateInputs, dialog.validate),
                             (command.inputChanged, dialog.changed),
@@ -120,3 +123,16 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
 def command_destroy(args: adsk.core.CommandEventArgs):
     local_handlers.clear()
+    _clear_dialogs()
+
+
+def _clear_dialogs():
+    failures = []
+    for dialog in list(_dialogs):
+        try:
+            dialog.clear_feedback()
+            _dialogs.remove(dialog)
+        except Exception as error:
+            failures.append(str(error))
+    if failures:
+        raise RuntimeError('; '.join(failures))

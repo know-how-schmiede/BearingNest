@@ -4,6 +4,7 @@ import math
 import adsk.core
 from ...seat_parameters import SeatParameters
 from ...strings import TEXT, PARAMETER_FIELDS
+from ...seat_feedback import new_feedback
 
 
 class SeatDialog:
@@ -11,6 +12,8 @@ class SeatDialog:
         self.app = app
         self.fields = {}
         self.catalog = None
+        self.feedback = new_feedback()
+        self._graphics = None
         self._refreshing = False
         self._inner_diameter_auto = True
         self._last_auto_inner_value = None
@@ -41,7 +44,7 @@ class SeatDialog:
             position.addSelectionFilter(selection_filter)
         position.setSelectionLimits(1, 0)
         self.fields.update(seat_face=face, seat_position=position)
-        self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', False)
+        self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', True)
         extra_fields = {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm',
                         'inner_diameter_mm', 'inner_depth_mm'}
         self._add_values(inputs, {field[0] for field in PARAMETER_FIELDS} - extra_fields)
@@ -154,6 +157,12 @@ class SeatDialog:
     def changed(self, args):
         if self._refreshing or args.input.id not in self.fields:
             return
+        try:
+            self.clear_feedback()
+        except Exception as error:
+            self.geometry_error = str(error)
+            self._set_status(escape(str(error)))
+            return
         self.geometry_error = None
         if self.catalog:
             self._refreshing = True
@@ -242,27 +251,32 @@ class SeatDialog:
     def preview(self, args):
         # Always rebuild in execute, so previews never commit without the seat snapshot.
         args.isValidResult = False
-        if not self.fields['seat_preview'].value:
-            return
         self.geometry_error = None
+        request = None
         try:
-            from ... import seat_geometry
-            request = self._request()
+            self.clear_feedback()
+            if not self.fields['seat_preview'].value:
+                return
+            request = self._request(check_placement=False)
             self._apply(request, persist=False)
             parameters = request[-1]
             message = TEXT['preview_ready'].format(
                 diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2]))
             if getattr(parameters, 'inner_relief_pending', False):
                 message += '<br>' + TEXT['inner_relief_pending']
+            message += self._feedback_message(request)
             self._set_status(message)
         except Exception as error:
             self.geometry_error = str(error)
-            self._set_status(escape(str(error)))
+            message = escape(str(error)).replace('\n', '<br>')
+            if request is not None:
+                message += self._feedback_message(request)
+            self._set_status(message)
 
     def execute(self, args):
         try:
-            from ... import seat_geometry
-            self._apply(self._request(), persist=True)
+            self.clear_feedback()
+            self._apply(self._request(check_placement=False), persist=True)
         except Exception as error:
             # The template's event wrapper logs exceptions; explicitly abort the Fusion transaction.
             args.executeFailed = True
@@ -272,6 +286,10 @@ class SeatDialog:
     def _apply(self, request, *, persist):
         from ... import seat_geometry
         options = {'auto_flags': {'inner_diameter_auto': self._inner_diameter_auto}} if persist else {}
+        options['feedback'] = self.feedback
+        if self.catalog:
+            from ...catalog_profiles import suggested
+            options['wall_threshold_mm'] = suggested(self.catalog.profile)['wall_warning_mm']
         if persist and self.catalog:
             from ...catalog_profiles import bearing_snapshot
             options['auto_flags'].update(self.catalog.flags())
@@ -281,3 +299,30 @@ class SeatDialog:
             from ... import seat_edit
             return seat_edit.update(request[0], self._editing_records, request[-1], persist=persist, **options)
         return seat_geometry.create_seats(*request, persist=persist, **options)
+
+    def clear_feedback(self):
+        if self._graphics is not None:
+            self._graphics.clear()
+        self.feedback = new_feedback()
+
+    def _feedback_message(self, request):
+        messages = []
+        for warnings in self.feedback['warnings'].values():
+            for message in warnings:
+                if message not in messages:
+                    messages.append(message)
+        text = ''
+        if messages:
+            text = '<br><b>' + TEXT['wall_warning_heading'] + '</b><br>' + '<br>'.join(escape(m) for m in messages)
+        if self.feedback['issues'] or messages:
+            try:
+                if self._graphics is None:
+                    from ...preview_graphics import PreviewGraphics
+                    self._graphics = PreviewGraphics()
+                parameters = request[-1]
+                radius = parameters.contact_mm / 2 + parameters.relief_mm + parameters.chamfer_mm
+                self._graphics.show(request[0], self.feedback, radius)
+                text += '<br>' + TEXT['marker_legend']
+            except Exception as error:
+                text += '<br>' + TEXT['markers_unavailable'].format(error=escape(str(error)))
+        return text

@@ -1,6 +1,6 @@
 # Bearing catalog and print profiles
 
-Version 0.3.0 implements searchable seed/custom bearings, named print profiles, per-field Auto/Manual behavior and local settings persistence. Native Fusion UI, save/reopen and platform acceptance remain pending. The owner requested this development before completing the separate 0.2.0 live proof.
+Version 0.3.0 implements searchable seed/custom bearings, named print profiles, per-field Auto/Manual behavior and local settings persistence. On 2026-11-04 the owner confirmed the library works, and existing seats can be edited individually or in batches. [Screenshots](SCREENSHOTS.md) show both tabs and a valid three-position catalog-based preview. Detailed save/reopen, profile, import/export and platform cases remain pending; the general report does not establish every acceptance case.
 
 ## Verified seed sizes
 
@@ -31,7 +31,7 @@ Each print-derived field has an Auto checkbox. Editing its effective value switc
 
 The initial profile uses a 0.4 mm nozzle and 0.2 mm layers. Factors are editable in Settings; the dialog displays factors and resulting millimetres. Positive finite inputs are required. Infeasible contours are rejected, never silently clamped. Layer counts have physical meaning only when the seat axis aligns with print Z. These suggestions still require printed trials.
 
-The stored future wall-warning factor starts at a provisional 2 x nozzle. **Wall detection is not implemented**; this setting neither issues a wall warning nor establishes a minimum safe wall thickness.
+The wall-warning factor starts at a provisional 2 x nozzle. In 0.3.0 this was stored for future use. Version 0.4.0 uses it for [conservative advisory margin probes](PREVIEW_AND_WALLS.md); these do not measure exact minimum wall thickness or establish a safe structural limit.
 
 ## Settings tab
 

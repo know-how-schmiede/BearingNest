@@ -344,6 +344,109 @@ class GeometryAdapterTests(unittest.TestCase):
         save.assert_not_called()
         self.assertTrue(source.areProfilesShown)
 
+    def test_all_independent_invalid_positions_are_reported_before_any_cut(self):
+        positions, source, sketches, tools, cuts = self.configure_batch(3)
+        report = {}
+        with patch.object(self.geometry, '_fully_contained',
+                          side_effect=[ValueError('first breakout'), None, ValueError('third floor')]), \
+                patch.object(self.geometry, '_check_overlap'), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            with self.assertRaisesRegex(ValueError, 'Position 1: first breakout') as error:
+                self.geometry.create_seats(self.design, self.face, positions, self.parameters,
+                    persist=True, feedback=report)
+        self.assertIn('Position 3: third floor', str(error.exception))
+        self.assertEqual(set(report['issues']), {1, 3})
+        self.assertEqual(set(report['placements']), {1, 2, 3})
+        self.assertEqual(self.extrudes.add.call_count, 3)
+        save.assert_not_called()
+        self.assertTrue(all(not sketch.isValid for sketch in sketches))
+        self.assertTrue(source.areProfilesShown)
+
+    def test_every_conflicting_pair_is_reported_and_both_positions_are_marked(self):
+        positions, _, _, _, _ = self.configure_batch(3)
+        report = {}
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry, '_check_overlap', side_effect=ValueError('overlap')) as overlap:
+            with self.assertRaises(ValueError):
+                self.geometry.create_seats(self.design, self.face, positions, self.parameters,
+                    persist=False, feedback=report)
+        self.assertEqual(overlap.call_count, 3)
+        self.assertEqual(set(report['issues']), {1, 2, 3})
+        self.assertTrue(all(len(messages) == 2 for messages in report['issues'].values()))
+        self.assertEqual(self.extrudes.add.call_count, 3)
+
+    def test_unavailable_advisory_check_never_blocks_a_valid_atomic_batch(self):
+        positions, _, _, _, cuts = self.configure_batch(2)
+        report = {}
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry, '_check_overlap'), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            result = self.geometry.create_seats(self.design, self.face, positions, self.parameters,
+                persist=True, feedback=report, wall_threshold_mm=0.8)
+        self.assertEqual(result, cuts)
+        self.assertEqual(save.call_count, 2)
+        self.assertFalse(report['issues'])
+        self.assertEqual(set(report['warnings']), {1, 2})
+        self.assertIn('could not be completed', report['warnings'][1][0])
+
+    def test_wall_probe_uses_mm_margin_and_excludes_intentional_through_all_exit(self):
+        parameters = type(self.parameters)(shaft_mode='Through All')
+        manager = NS(createCylinderOrCone=Mock(return_value=object()))
+        report = self.geometry.new_feedback()
+        with patch.object(self.geometry, '_fully_contained', side_effect=ValueError('thin floor')):
+            self.geometry._wall_warnings(manager, object(), [(Point(0, 0, 0), Vector(), {})],
+                [], parameters, 0.8, report)
+        manager.createCylinderOrCone.assert_called_once()
+        start, radius, end, other_radius = manager.createCylinderOrCone.call_args.args
+        self.assertAlmostEqual(start.z, 0)
+        self.assertAlmostEqual(end.z, -0.78)
+        self.assertAlmostEqual(radius, 1.295)
+        self.assertAlmostEqual(other_radius, radius)
+        self.assertIn('Creation remains allowed', report['warnings'][1][0])
+
+    def test_wall_probes_respect_blind_and_floor_referenced_relief_depths(self):
+        parameters = type(self.parameters)(shaft_mode='Blind', inner_relief_enabled=True, inner_diameter_mm=12)
+        manager = NS(createCylinderOrCone=Mock(return_value=object()))
+        report = self.geometry.new_feedback()
+        with patch.object(self.geometry, '_fully_contained'):
+            self.geometry._wall_warnings(manager, object(), [(Point(0, 0, 0), Vector(), {})],
+                [], parameters, 0.8, report)
+        self.assertEqual(manager.createCylinderOrCone.call_count, 3)
+        blind, relief = [call.args for call in manager.createCylinderOrCone.call_args_list[1:]]
+        self.assertAlmostEqual(blind[2].z, -1.28)
+        self.assertAlmostEqual(relief[0].z, -0.7)
+        self.assertAlmostEqual(relief[2].z, -0.82)
+        self.assertFalse(report['warnings'])
+
+    def test_interseat_wall_warnings_identify_both_seats_without_duplicates(self):
+        manager = NS(createCylinderOrCone=Mock(return_value=object()))
+        report = self.geometry.new_feedback()
+        placements = [(Point(i*10, 0, 0), Vector(), {}) for i in (0, 1)]
+        prepared = [{'index': i, 'extras': [], 'envelope': object()} for i in (1, 2)]
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry, '_check_overlap', side_effect=ValueError('near')):
+            self.geometry._wall_warnings(manager, object(), placements, prepared, self.parameters, 0.8, report)
+        self.assertEqual(set(report['warnings']), {1, 2})
+        self.assertTrue(all(len(messages) == 1 for messages in report['warnings'].values()))
+
+    def test_invalid_wall_threshold_is_rejected_before_model_changes(self):
+        for threshold in (-1, float('inf'), float('nan')):
+            with self.assertRaises(ValueError):
+                self.geometry.create_seats(self.design, self.face, [self.position], self.parameters,
+                    persist=False, wall_threshold_mm=threshold)
+        self.design.rootComponent.sketches.addWithoutEdges.assert_not_called()
+
+    def test_unexpected_advisory_failure_is_reported_without_rejecting_valid_geometry(self):
+        report = {}
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry, '_wall_warnings', side_effect=RuntimeError('advisory API failed')), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            result = self.geometry.create_seats(self.design, self.face, [self.position], self.parameters,
+                persist=True, feedback=report, wall_threshold_mm=0.8)
+        self.assertEqual(result, [self.cut])
+        save.assert_called_once()
+        self.assertIn('could not be completed', report['warnings'][1][0])
+
     def test_overlapping_positions_are_rejected_before_any_direct_cut(self):
         positions, source, sketches, tools, cuts = self.configure_batch()
         with patch.object(self.geometry, '_fully_contained'), \

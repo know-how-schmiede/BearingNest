@@ -68,7 +68,8 @@ def editable_entities(design, records):
     return sorted(entities, key=lambda entity: entity.timelineObject.index, reverse=True)
 
 
-def update(design, records, values, *, persist, auto_flags=None, bearing=None, profile=None):
+def update(design, records, values, *, persist, auto_flags=None, bearing=None, profile=None,
+           feedback=None, wall_threshold_mm=0):
     values.validate()
     entities = editable_entities(design, records)
     suppressed = []
@@ -93,6 +94,10 @@ def update(design, records, values, *, persist, auto_flags=None, bearing=None, p
             metadata['bearing'] = bearing
         if profile is not None:
             metadata['profile'] = profile
+        if feedback is not None:
+            metadata['feedback'] = feedback
+        if wall_threshold_mm:
+            metadata['wall_threshold_mm'] = wall_threshold_mm
         cuts = seat_geometry.create_seats(design, faces[0], positions, values,
             persist=persist, previous_snapshots=records, auto_flags=auto_flags, **metadata)
         if persist:
