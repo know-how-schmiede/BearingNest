@@ -3,7 +3,7 @@ from html import escape
 import math
 import adsk.core
 from ...seat_parameters import SeatParameters
-from ...strings import TEXT, PARAMETER_FIELDS
+from ...strings import TEXT, PARAMETER_FIELDS, label, source_label
 from ...seat_feedback import new_feedback
 
 
@@ -26,6 +26,9 @@ class SeatDialog:
             adsk.core.DropDownStyles.TextListDropDownStyle)
         chooser.listItems.add(TEXT['new_batch'], True, '')
         self.fields['seat_batch'] = chooser
+        self.fields['catalog_search'] = inputs.addStringValueInput('catalog_search', TEXT['catalog_search'], '')
+        self.fields['catalog_bearing'] = inputs.addDropDownCommandInput(
+            'catalog_bearing', TEXT['catalog_bearing'], adsk.core.DropDownStyles.TextListDropDownStyle)
         if getattr(app, 'activeProduct', None) is not None:
             from adsk import fusion
             from ... import seat_edit
@@ -33,9 +36,9 @@ class SeatDialog:
             if design is not None:
                 batches, self._discovery_errors = seat_edit.batches(design)
                 for number, records in enumerate(batches, 1):
-                    label = f'Edit batch {number}: {len(records)} seat(s) [{records[0]["seat_id"][:8]}]'
-                    chooser.listItems.add(label, False, '')
-                    self._batches[label] = records
+                    batch_label = TEXT['edit_batch_label'].format(number=number, count=len(records), identity=records[0]['seat_id'][:8])
+                    chooser.listItems.add(batch_label, False, '')
+                    self._batches[batch_label] = records
         face = inputs.addSelectionInput('seat_face', TEXT['select_face'], TEXT['select_face_prompt'])
         face.addSelectionFilter('PlanarFaces')
         face.setSelectionLimits(1, 1)
@@ -56,7 +59,7 @@ class SeatDialog:
         mode = inputs.addDropDownCommandInput('shaft_mode', TEXT['shaft_mode'],
                                               adsk.core.DropDownStyles.TextListDropDownStyle)
         for name in ('Off', 'Through All', 'Blind'):
-            mode.listItems.add(name, name == 'Off', '')
+            mode.listItems.add(label(name), name == 'Off', '')
         self.fields['shaft_mode'] = mode
         self._add_values(inputs, {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm'})
         self.fields['inner_relief_enabled'] = inputs.addBoolValueInput(
@@ -67,7 +70,7 @@ class SeatDialog:
         self.status = inputs.addTextBoxCommandInput('seat_status', '', TEXT['selection_required'], 4, True)
         self.status.isFullWidth = True
         if self._discovery_errors:
-            self._set_status(escape('Some saved seats need repair: ' + '; '.join(self._discovery_errors)))
+            self._set_status(escape(TEXT['repair_seats'].format(errors='; '.join(self._discovery_errors))))
 
     def _add_values(self, inputs, identities):
         for identity, label, units, expression in PARAMETER_FIELDS:
@@ -90,10 +93,10 @@ class SeatDialog:
                 if not field.isEnabled:
                     values[identity] = getattr(defaults, identity)
                     continue
-                raise ValueError(f'{label}: invalid expression.')
+                raise ValueError(TEXT['invalid_expression'].format(label=label))
             values[identity] = math.degrees(field.value) if units == 'deg' else field.value * 10.0
         values['land_count'] = int(self.fields['land_count'].selectedItem.name)
-        values['shaft_mode'] = self.fields['shaft_mode'].selectedItem.name
+        values['shaft_mode'] = source_label(self.fields['shaft_mode'].selectedItem.name)
         values['inner_relief_enabled'] = (values['shaft_mode'] != 'Off'
                                           and self.fields['inner_relief_enabled'].value)
         parameters = SeatParameters(**values)
@@ -122,7 +125,7 @@ class SeatDialog:
     def _refresh_controls(self):
         if self._refreshing:
             return
-        mode = self.fields['shaft_mode'].selectedItem.name
+        mode = source_label(self.fields['shaft_mode'].selectedItem.name)
         states = {}
         for identity in ('bore_mm', 'shaft_allowance_mm'):
             states[identity] = mode != 'Off'
@@ -192,7 +195,7 @@ class SeatDialog:
                         items = self.fields[identity].listItems
                         for index in range(items.count):
                             item = items.item(index)
-                            if item.name == str(getattr(values, identity)):
+                            if item.name == label(str(getattr(values, identity))):
                                 item.isSelected = True
                                 break
                     self.fields['inner_relief_enabled'].value = values.inner_relief_enabled

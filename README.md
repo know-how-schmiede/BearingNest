@@ -2,17 +2,20 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.0** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.2** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
 
+Version 0.4.2 streamlines Bearing Seat: catalog selection follows the create/edit selector, print-profile controls live under Settings, and new seats start with a 0.4 mm lead-in chamfer. Below preview status, enter a bearing name and click **Save parameters to bearing catalog / Parameter im Lagerkatalog speichern**. This immediately creates a new local entry with dimensions, seat parameters, profile and Auto flags; selecting it restores these values. Geometry Cancel does not undo a library save. Existing dimension-only records remain supported.
+
 ![BearingNest 0.3.0 with a catalog bearing and a valid three-position preview in Fusion](images/screenshots/04-11-2026_22-13-22.png)
 
 On 2026-11-04 the owner confirmed the library and editing existing seats, including multiple seats together. See [the new 0.3.0 screenshots and earlier version-specific evidence](doku/SCREENSHOTS.md).
 
-- `BearingNest <VERSION>` under Design > Solid > Create, with three English tabs: **Bearing Seat**, **Settings**, **About**.
+- `BearingNest <VERSION>` under Design > Solid > Create, with three localized tabs: **Bearing Seat / Lagersitz**, **Settings / Einstellungen**, **About / Über**.
+- German UI follows Fusion's user-language preference; English is the fallback. Restart the add-in after changing Fusion's language. Dialog labels, help, status and wall warnings are translated; technical geometry/storage exception details and built-in profile names remain English. Saved data and user-entered names are preserved. German native layout and preview/edit acceptance still require a Fusion trial.
 - One planar face and multiple sketch points, vertices or circular edge centers as seat positions, with shared settings.
 - Manual bearing outside diameter/width, diameter and axial corrections, 3/5/7/9 lands, contact angle, rotation, radial relief depth and transition radius.
 - Shared construction of [confirmed contour A](doku/CONTOUR_PROPOSAL.md), cut preview enabled by default and an **Apply Seats** action. Preview can be switched off.

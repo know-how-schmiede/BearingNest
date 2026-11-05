@@ -84,7 +84,7 @@ PARAMETER_FIELDS = (
     ('rotation_degrees', 'Pattern rotation', 'deg', '0 deg'),
     ('relief_mm', 'Radial relief depth', 'mm', '1.2 mm'),
     ('fillet_mm', 'Transition radius', 'mm', '0.4 mm'),
-    ('chamfer_mm', '45 deg lead-in chamfer (0 = off)', 'mm', '0 mm'),
+    ('chamfer_mm', '45 deg lead-in chamfer (0 = off)', 'mm', '0.4 mm'),
     ('bore_mm', 'Bearing bore (manual)', 'mm', '8 mm'),
     ('shaft_allowance_mm', 'Shaft diameter allowance', 'mm', '0.2 mm'),
     ('blind_depth_mm', 'Blind shaft depth from face', 'mm', '12 mm'),
@@ -109,3 +109,54 @@ BEARING_TEXT_FIELDS = (
     ('notes', 'Bearing notes'),
     ('purchasing_url', 'Optional purchasing URL'),
 )
+
+TEXT.update(catalog_save_name='Bearing name', catalog_save='Save parameters to bearing catalog',
+            catalog_name_required='Enter a bearing name before saving.',
+            catalog_parameters_saved='Bearing parameters saved to the local catalog.',
+            edit_batch_label='Edit batch {number}: {count} seat(s) [{identity}]',
+            repair_seats='Some saved seats need repair: {errors}',
+            invalid_expression='{label}: invalid expression.',
+            saved_bearing_name='Saved bearing', size_alias='size alias')
+ENGLISH_TEXT = dict(TEXT)
+PARAMETER_FIELDS = list(PARAMETER_FIELDS)
+PROFILE_FIELDS = list(PROFILE_FIELDS)
+BEARING_TEXT_FIELDS = list(BEARING_TEXT_FIELDS)
+_FIELD_SOURCES = [tuple(fields) for fields in
+                  (PARAMETER_FIELDS, PROFILE_FIELDS, BEARING_TEXT_FIELDS)]
+_locale = 'en'
+
+
+def label(source):
+    if _locale == 'de':
+        from .strings_de import LABELS
+        return LABELS.get(source, source)
+    return source
+
+
+def source_label(display):
+    for source in ('Off', 'Through All', 'Blind'):
+        if display == label(source):
+            return source
+    return display
+
+
+def set_locale(locale):
+    global _locale
+    _locale = 'de' if locale.lower().replace('_', '-').split('-')[0] == 'de' else 'en'
+    TEXT.clear()
+    TEXT.update(ENGLISH_TEXT)
+    if _locale == 'de':
+        from .strings_de import TEXT as german
+        TEXT.update(german)
+    for fields, sources in zip((PARAMETER_FIELDS, PROFILE_FIELDS, BEARING_TEXT_FIELDS), _FIELD_SOURCES):
+        fields[:] = [(row[0], label(row[1]), *row[2:]) for row in sources]
+
+
+def configure_from_fusion(app):
+    """Use Fusion's UI preference; hosts without preferences use English."""
+    import adsk.core
+    try:
+        german = app.preferences.generalPreferences.userLanguage == adsk.core.UserLanguages.GermanLanguage
+    except AttributeError:
+        german = False
+    set_locale('de' if german else 'en')

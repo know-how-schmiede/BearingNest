@@ -59,6 +59,26 @@ def validate_bearing(record):
     url = record['purchasing_url']
     if url and not url.startswith(('https://', 'http://')):
         raise ValueError('Purchasing URL must start with https:// or http://.')
+    if 'seat_preset' in record:
+        validate_seat_preset(record['seat_preset'])
+
+
+def validate_seat_preset(preset):
+    """Optional additive catalog data; legacy dimension-only entries stay valid."""
+    from .seat_parameters import SeatParameters
+    from dataclasses import asdict
+    if not isinstance(preset, dict) or not isinstance(preset.get('parameters'), dict):
+        raise ValueError('Invalid seat preset.')
+    values = preset['parameters']
+    if set(values) != set(asdict(SeatParameters())):
+        raise ValueError('Seat preset must contain all seat parameters.')
+    parameters = SeatParameters(**values)
+    parameters.validate()
+    parameters.segments()
+    validate_profile(preset.get('profile'))
+    flags = preset.get('auto_flags')
+    if not isinstance(flags, dict) or any(type(flags.get(key + '_auto')) is not bool for key in DERIVED):
+        raise ValueError('Invalid seat preset auto flags.')
 
 
 def validate_profile(record):

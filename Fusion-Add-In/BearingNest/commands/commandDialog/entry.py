@@ -4,7 +4,7 @@ import adsk.core
 from ...lib import fusionAddInUtils as futil
 from ... import config
 from ...version import VERSION
-from ...strings import TEXT
+from ...strings import TEXT, configure_from_fusion
 from .seat_dialog import SeatDialog
 from .catalog_dialog import CatalogDialog
 
@@ -36,6 +36,7 @@ def _remove_legacy_control():
 
 def start():
     """Register one command, including when called twice without a stop."""
+    configure_from_fusion(app)
     panel = _panel()
     if not panel:
         raise RuntimeError(TEXT['missing_panel'])
@@ -89,10 +90,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs = command.commandInputs
 
     seat = inputs.addTabCommandInput('bearing_seat_tab', TEXT['bearing_seat']).children
-    _text(seat, 'foundation_status', 'foundation_status', 3)
     dialog = SeatDialog(seat, app)
     _dialogs.append(dialog)
-    _text(seat, 'geometry_status', 'geometry_status', 3)
     for event, callback in ((command.validateInputs, dialog.validate),
                             (command.inputChanged, dialog.changed),
                             (command.executePreview, dialog.preview),
@@ -101,7 +100,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     settings = inputs.addTabCommandInput('settings_tab', TEXT['settings']).children
     _text(settings, 'settings_status', 'settings_status', 4)
-    _text(settings, 'profile_guidance', 'profile_guidance', 5)
     dialog._refreshing = True
     try:
         dialog.catalog = CatalogDialog(seat, settings, dialog)

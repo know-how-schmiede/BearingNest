@@ -308,6 +308,51 @@ class FoundationTests(unittest.TestCase):
         self.assertTrue(record['id'].startswith('custom-'))
         self.assertFalse(dialog.fields['bearing_save'].value)
 
+    def test_compact_layout_and_named_parameter_catalog_round_trip(self):
+        _, inputs, dialog = self.make_dialog()
+        seat_ids = [field.id for field in inputs.tabs[0].children.fields]
+        settings_ids = [field.id for field in inputs.tabs[1].children.fields]
+        self.assertEqual(seat_ids[:3], ['seat_batch', 'catalog_search', 'catalog_bearing'])
+        self.assertNotIn('foundation_status', seat_ids)
+        self.assertNotIn('geometry_status', seat_ids)
+        self.assertNotIn('profile_effective', seat_ids)
+        self.assertIn('print_profile', settings_ids)
+        self.assertNotIn('print_profile', seat_ids)
+        self.assertLess(seat_ids.index('seat_status'), seat_ids.index('catalog_save_name'))
+        self.assertEqual(seat_ids[seat_ids.index('catalog_save_name') + 1], 'catalog_save')
+        self.assertAlmostEqual(dialog.fields['chamfer_mm'].value, 0.04)
+        dialog.fields['catalog_save_name'].value = '608 printed seat'
+        dialog.fields['land_count'].selectedItem.name = '7'
+        dialog.fields['land_degrees'].expression = '25 deg'
+        dialog.fields['correction_mm'].expression = '-0.15 mm'
+        model = dialog.catalog._save.__globals__['model']
+        with patch.object(model, 'save') as save:
+            dialog.fields['catalog_save'].value = True
+            self.change(dialog, 'catalog_save')
+        save.assert_called_once()
+        record = dialog.catalog.data['bearings'][0]
+        model.validate_bearing(record)
+        self.assertEqual(record['designation'], '608 printed seat')
+        self.assertEqual(record['seat_preset']['parameters']['land_count'], 7)
+        self.assertEqual(record['seat_preset']['parameters']['land_degrees'], 25)
+        dialog.fields['correction_mm'].expression = '0 mm'
+        dialog.catalog._restore_preset(record['seat_preset'])
+        self.assertAlmostEqual(dialog.fields['correction_mm'].value, -0.015)
+        self.assertFalse(dialog.fields['catalog_save'].value)
+
+    def test_named_catalog_save_rejects_missing_name_and_failed_storage(self):
+        _, _, dialog = self.make_dialog()
+        model = dialog.catalog._save.__globals__['model']
+        with patch.object(model, 'save') as save:
+            with self.assertRaises(ValueError):
+                dialog.catalog._save_parameters()
+        save.assert_not_called()
+        dialog.fields['catalog_save_name'].value = 'Example'
+        with patch.object(model, 'save', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                dialog.catalog._save_parameters()
+        self.assertEqual(dialog.catalog.data['bearings'], [])
+
     def test_invalid_settings_do_not_partially_replace_data_or_profile(self):
         _, _, dialog = self.make_dialog()
         original = dialog.catalog.profile.copy()

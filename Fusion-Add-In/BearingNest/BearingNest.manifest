@@ -5,7 +5,7 @@
     "description": {
         "": "Print-oriented ball bearing seats for Fusion - seat batches with shaft opening and inner-ring relief."
     },
-    "version": "0.4.0",
+    "version": "0.4.2",
     "runOnStartup": false,
     "supportedOS": "windows|mac",
     "editEnabled": true,

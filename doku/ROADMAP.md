@@ -13,7 +13,15 @@ Versions are planned milestones, not implemented features or promised dates.
 | 0.9.0 | Localization and release candidate | Introduce English source locale plus German translation; terminology review; install/uninstall and Fusion resource QA; complete guidance. |
 | 1.0.0 | First stable release | Required checks and manual Fusion trials pass; library sources reviewed; license/publisher/repository links decided; owner publishes. |
 
+## Localization brought forward (0.4.1)
+
+At the owner's request on 2026-11-05, German UI localization precedes robust editing. The owner reports that 0.4.0 runs; detailed acceptance cases remain separately open. Version 0.4.1 implements English/German dialog text selected from Fusion's language preference, with English fallback. Technical exception details and built-in profile names remain English. The 0.9.0 milestone retains terminology review and release/resource QA.
+
+Before continuing with 0.5.0, review German layout in Fusion, including Settings/About, long wall warnings and restored batches using Durchgehend/Sackloch. Verify preview, cancel and apply; switch Fusion to English and restart to check fallback and unchanged saved data.
+
 ## Immediate next steps
+
+The owner confirmed automatic German selection in German Fusion on 2026-11-05. Version 0.4.2 implements the requested compact dialog and named parameter saves in the catalog. Check the native button, layout and preset reload, including after reopening Fusion; automated checks do not replace this UI acceptance.
 
 1. Run the [0.4.0 preview/wall acceptance procedure](PREVIEW_AND_WALLS.md#acceptance-in-fusion-pending) on a disposable design. Record Fusion build and OS; the owner's 0.3.0 library/edit confirmation is recorded separately.
 2. Verify save/reopen discovery, stable seat IDs, repeated edits, failed updates, preview cancel and single-command undo/redo. Automated API-substitute checks do not complete this proof.

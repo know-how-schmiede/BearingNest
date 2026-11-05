@@ -1,12 +1,14 @@
 """Catalog/profile controls in the existing three-tab command."""
 from copy import deepcopy
+from dataclasses import asdict
 from html import escape
 import math
 from pathlib import Path
 from uuid import uuid4
 import adsk.core
 from ... import catalog_profiles as model
-from ...strings import TEXT, PROFILE_FIELDS, BEARING_TEXT_FIELDS
+from ...strings import TEXT, PROFILE_FIELDS, BEARING_TEXT_FIELDS, PARAMETER_FIELDS, label, source_label
+from ...seat_parameters import SeatParameters
 
 
 class CatalogDialog:
@@ -23,14 +25,15 @@ class CatalogDialog:
             self.data = model.defaults()
             self.load_error = str(error)
         self.profile = deepcopy(self.data['profiles'][0])
-        self._string(seat_inputs, 'catalog_search', TEXT['catalog_search'])
-        self._dropdown(seat_inputs, 'catalog_bearing', TEXT['catalog_bearing'])
-        self._dropdown(seat_inputs, 'print_profile', TEXT['print_profile'])
+        self._string(seat_inputs, 'catalog_save_name', TEXT['catalog_save_name'])
+        self.fields['catalog_save'] = seat_inputs.addBoolValueInput(
+            'catalog_save', TEXT['catalog_save'], False, '', False)
+        self.save_status = seat_inputs.addTextBoxCommandInput('catalog_save_status', '', '', 2, True)
+        self.save_status.isFullWidth = True
+        self._dropdown(settings, 'print_profile', TEXT['print_profile'])
         for field in model.DERIVED:
-            self._bool(seat_inputs, field + '_auto', TEXT[field + '_auto'], True)
-        self._bool(seat_inputs, 'profile_reset', TEXT['profile_reset'])
-        self.guidance = seat_inputs.addTextBoxCommandInput('profile_effective', '', '', 4, True)
-        self.guidance.isFullWidth = True
+            self._bool(settings, field + '_auto', TEXT[field + '_auto'], True)
+        self._bool(settings, 'profile_reset', TEXT['profile_reset'])
         self._string(settings, 'custom_id', TEXT['custom_id'])
         for field, label in BEARING_TEXT_FIELDS:
             self._string(settings, 'custom_' + field, label)
@@ -76,9 +79,9 @@ class CatalogDialog:
         records = model.search(model.seed_bearings() + self.data['bearings'],
                                self.fields['catalog_search'].value)
         for record in records:
-            label = (f"{record.get('designation', 'Saved bearing')} | {record.get('d_mm')} x "
+            label = (f"{record.get('designation', TEXT['saved_bearing_name'])} | {record.get('d_mm')} x "
                      f"{record.get('D_mm')} x {record.get('B_mm')} mm | "
-                     f"{record.get('manufacturer') or 'size alias'} [{record.get('id', 'snapshot')}]")
+                     f"{record.get('manufacturer') or TEXT['size_alias']} [{record.get('id', 'snapshot')}]")
             self.bearing_choices[label] = record
         if self.bearing and self.bearing not in records:
             # Keep the historical snapshot and the current library entry as
@@ -108,11 +111,6 @@ class CatalogDialog:
                 value = suggestions[field]
                 self.last_auto[field] = value / 10
                 self.fields[field].expression = f'{value:.12g} mm'
-        self.guidance.formattedText = TEXT['effective_profile'].format(
-            name=escape(self.profile['name']), nozzle=self.profile['nozzle_mm'], layer=self.profile['layer_mm'],
-            relief=suggestions['relief_mm'], fillet=suggestions['fillet_mm'],
-            depth=suggestions['inner_depth_mm'], wall=suggestions['wall_warning_mm'],
-            rf=self.profile['relief_factor'], ff=self.profile['fillet_factor'], df=self.profile['inner_depth_factor'])
 
     def restore(self, record):
         """Use stored snapshots, never today's mutable library/defaults, on reopen."""
@@ -153,7 +151,16 @@ class CatalogDialog:
 
     def process(self, identity):
         """Called only from inputChanged with the parent's recursive-event guard set."""
-        if identity == 'catalog_search':
+        if identity == 'catalog_save':
+            if not self.fields[identity].value:
+                return
+            self.fields[identity].value = False
+            try:
+                self._save_parameters()
+                self.save_status.formattedText = TEXT['catalog_parameters_saved']
+            except Exception as error:
+                self.save_status.formattedText = escape(str(error))
+        elif identity == 'catalog_search':
             self._choices()
         elif identity == 'catalog_bearing':
             label = self.fields[identity].selectedItem.name
@@ -165,6 +172,8 @@ class CatalogDialog:
                 for key, field in (('d_mm', 'bore_mm'), ('D_mm', 'outside_mm'), ('B_mm', 'width_mm')):
                     self.fields[field].expression = f'{self.bearing[key]:.12g} mm'
                 self.seat._sync_inner_diameter()
+                if 'seat_preset' in self.bearing:
+                    self._restore_preset(self.bearing['seat_preset'])
         elif identity == 'print_profile':
             label = self.fields[identity].selectedItem.name
             if label == self._selected_print_profile:
@@ -276,3 +285,54 @@ class CatalogDialog:
             self._save(candidate)
             # Existing dialog values and profile snapshots are deliberately unchanged.
         self._choices()
+
+    def _save_parameters(self):
+        name = self.fields['catalog_save_name'].value.strip()
+        if not name:
+            raise ValueError(TEXT['catalog_name_required'])
+        values = {key: self._number(key, units == 'mm') if units != 'deg'
+                  else math.degrees(self.fields[key].value)
+                  for key, _, units, _ in PARAMETER_FIELDS}
+        # Validate angle expressions as well as length fields before any write.
+        if any(not self.fields[key].isValidExpression for key, *_ in PARAMETER_FIELDS):
+            raise ValueError(TEXT['invalid_settings_expression'])
+        values.update(land_count=int(self.fields['land_count'].selectedItem.name),
+                      shaft_mode=source_label(self.fields['shaft_mode'].selectedItem.name),
+                      inner_relief_enabled=self.fields['inner_relief_enabled'].value)
+        parameters = SeatParameters(**values)
+        parameters.validate()
+        parameters.segments()
+        record = {field: '' for field, _ in BEARING_TEXT_FIELDS}
+        if self.bearing:
+            record.update(deepcopy(self.bearing))
+        # Each explicit save creates a new entry; never overwrite a seed or a
+        # similarly named library record as a side effect of saving geometry.
+        record.update(id='custom-' + str(uuid4()), designation=name,
+                      d_mm=parameters.bore_mm, D_mm=parameters.outside_mm,
+                      B_mm=parameters.width_mm)
+        record.setdefault('inner_ring_outside_mm', None)
+        record.pop('catalog_dimensions', None)
+        record.pop('dimensions_overridden', None)
+        record['seat_preset'] = dict(parameters=asdict(parameters),
+                                   profile=deepcopy(self.profile), auto_flags=self.flags())
+        model.validate_bearing(record)
+        candidate = deepcopy(self.data)
+        candidate['bearings'].append(record)
+        self._save(candidate)
+        self.bearing = deepcopy(record)
+        self.fields['catalog_search'].value = ''
+        self._choices()
+
+    def _restore_preset(self, preset):
+        values = preset['parameters']
+        for key, _, units, _ in PARAMETER_FIELDS:
+            self.fields[key].expression = f'{values[key]:.12g} {units}'
+        for key in ('land_count', 'shaft_mode'):
+            items = self.fields[key].listItems
+            for index in range(items.count):
+                item = items.item(index)
+                item.isSelected = item.name == label(str(values[key]))
+        self.fields['inner_relief_enabled'].value = values['inner_relief_enabled']
+        self.seat._inner_diameter_auto = math.isclose(values['inner_diameter_mm'], values['bore_mm'])
+        self.seat._last_auto_inner_value = values['bore_mm'] / 10 if self.seat._inner_diameter_auto else None
+        self.restore(dict(bearing=self.bearing, profile=preset['profile'], auto_flags=preset['auto_flags']))

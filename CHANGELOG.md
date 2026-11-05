@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.2 - 2026-11-05
+
+- Record the owner's successful automatic German selection in German Fusion.
+- Remove the introductory version/workflow block and lower shaft-depth summary from Bearing Seat. Place catalog search/selection directly below the create/edit selector. Move profile selection, Auto switches and reset to Settings; remove profile summary/guidance blocks. Retain version information under About and in the command title.
+- Default the new-seat dialog's lead-in chamfer to 0.4 mm; saved seats retain their own values.
+- Add a bearing-name field and click button below preview status. Save a new custom catalog entry containing bearing dimensions, all current seat parameters, profile snapshot and Auto flags. Selecting that entry restores its preset. Save immediately to local settings, independently of geometry Apply/Cancel; never overwrite an existing entry implicitly.
+- Validate optional presets during catalog loading/import and before saving; dimension-only legacy entries remain supported.
+
+Validation: 134 automated tests pass, including layout order, default chamfer, named preset round trip, missing-name rejection and storage failure preservation. Version synchronization passes. Native Fusion layout/button and restored-preset acceptance remain pending.
+
+## 0.4.1 - 2026-11-05
+
+- Bring German UI localization forward at the owner's request. Translate all centralized dialog/help/status strings, parameter and metadata labels, advisory wall warnings and shaft-mode choices. Follow Fusion's user-language preference on add-in start; other languages fall back to English.
+- Keep command/input IDs, units, expressions, stored shaft modes and user library/profile content language independent. Restore saved shaft modes using translated display labels.
+- Record the owner's report that 0.4.0 runs. This does not establish every detailed acceptance case.
+- Technical geometry/storage exception details and bundled profile names remain English. Native German UI layout and edit/preview acceptance remain pending.
+
+Validation: 132 automated tests pass, including German key/format coverage, field/unit preservation, locale fallback and shaft-mode round trips. Version synchronization passes. No native Fusion run was available for this change.
+
 ## 0.4.0 - 2026-11-04
 
 - Record the owner's confirmation that the 0.3.0 library and editing existing seats work, including editing multiple seats together. Embed the three new 0.3.0 screenshots and the earlier 0.1.7 clearance screenshot with version-specific captions. Detailed lifecycle/profile/platform cases remain separate.
