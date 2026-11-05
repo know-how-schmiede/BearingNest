@@ -244,16 +244,21 @@ class FoundationTests(unittest.TestCase):
         dialog.fields['catalog_bearing'].selectedItem = SimpleNamespace(name=label)
         self.change(dialog, 'catalog_bearing')
 
-    def test_catalog_selection_updates_dimensions_but_keeps_fit_and_manual_relief(self):
+    def test_dimension_only_catalog_selection_resets_previous_bearing_settings(self):
         _, _, dialog = self.make_dialog()
         dialog.fields['inner_diameter_mm'].expression = '9 mm'
         self.change(dialog, 'inner_diameter_mm')
+        dialog.fields['correction_mm'].expression = '-0.2 mm'
+        dialog.fields['relief_mm'].expression = '2 mm'
         self.select_catalog_bearing(dialog, '623')
         self.assertEqual(dialog.fields['bore_mm'].value, 0.3)
         self.assertEqual(dialog.fields['outside_mm'].value, 1)
         self.assertEqual(dialog.fields['width_mm'].value, 0.4)
         self.assertEqual(dialog.fields['correction_mm'].value, -0.01)
-        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 0.9)
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 0.3)
+        self.assertEqual(dialog.fields['relief_mm'].value, 0.12)
+        self.assertTrue(dialog.fields['relief_mm_auto'].value)
+        self.assertEqual(dialog.fields['catalog_save_name'].value, '623')
         self.assertIsNone(dialog.catalog.bearing['inner_ring_outside_mm'])
 
     def test_profile_save_switch_preserves_manual_field_and_reset_restores_auto(self):
@@ -307,6 +312,49 @@ class FoundationTests(unittest.TestCase):
         self.assertIsNone(record['inner_ring_outside_mm'])
         self.assertTrue(record['id'].startswith('custom-'))
         self.assertFalse(dialog.fields['bearing_save'].value)
+        self.assertIn('seat_preset', record)
+
+    def test_catalog_selection_restores_every_saved_parameter_profile_and_metadata(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        values = dict(outside_mm=24, width_mm=8, bore_mm=9, correction_mm=-0.15,
+                      axial_mm=0.2, land_degrees=25, rotation_degrees=12,
+                      relief_mm=1.3, fillet_mm=0.35, chamfer_mm=0.5,
+                      shaft_allowance_mm=0.3, blind_depth_mm=15,
+                      inner_diameter_mm=14, inner_depth_mm=0.5)
+        parameters = dict(values, land_count=7, shaft_mode='Blind', inner_relief_enabled=True)
+        profile = dict(catalog.profile, name='Stored printer', nozzle_mm=0.5)
+        flags = dict(relief_mm_auto=False, fillet_mm_auto=True,
+                     inner_depth_mm_auto=False, inner_diameter_auto=False)
+        model = catalog._save.__globals__['model']
+        record = dict(model.seed_bearings()[0], id='custom-full', designation='Complete preset',
+                      d_mm=9, D_mm=24, B_mm=8, manufacturer='Example',
+                      seat_preset=dict(parameters=parameters, profile=profile, auto_flags=flags))
+        model.validate_bearing(record)
+        catalog.data['bearings'].append(record)
+        catalog._choices()
+        self.select_catalog_bearing(dialog, 'Complete preset')
+        for key, value in values.items():
+            expected = math.radians(value) if key.endswith('degrees') else value / 10
+            self.assertAlmostEqual(dialog.fields[key].value, expected, msg=key)
+        for key, expected in (('land_count', '7'), ('shaft_mode', 'Blind')):
+            items = dialog.fields[key].listItems
+            self.assertTrue(next(items.item(i) for i in range(items.count)
+                                 if items.item(i).name == expected).isSelected)
+        self.assertTrue(dialog.fields['inner_relief_enabled'].value)
+        self.assertEqual(catalog.profile, profile)
+        for key in ('relief_mm_auto', 'fillet_mm_auto', 'inner_depth_mm_auto'):
+            self.assertEqual(dialog.fields[key].value, flags[key])
+        self.assertFalse(dialog._inner_diameter_auto)
+        self.assertEqual(dialog.fields['profile_name'].value, 'Stored printer')
+        self.assertEqual(dialog.fields['custom_manufacturer'].value, 'Example')
+        self.assertEqual(dialog.fields['custom_id'].value, 'custom-full')
+        # Delayed programmatic selector/value events must not recalculate a preset.
+        self.change(dialog, 'catalog_bearing')
+        self.change(dialog, 'print_profile')
+        self.change(dialog, 'fillet_mm')
+        self.assertAlmostEqual(dialog.fields['fillet_mm'].value, 0.035)
+        self.assertTrue(dialog.fields['fillet_mm_auto'].value)
 
     def test_compact_layout_and_named_parameter_catalog_round_trip(self):
         _, inputs, dialog = self.make_dialog()

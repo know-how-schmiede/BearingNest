@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.3 - 2026-11-05
+
+- Make explicit bearing selection load the complete saved seat/profile preset plus name, metadata and Auto state. Select only the matching dropdown item when restoring land count and shaft mode.
+- Store complete presets through the Settings bearing-save action too; previously this path discarded them. Preserve the inner-diameter follow-bore flag.
+- Reset dimension-only/seed entries to documented standard seat/profile settings instead of inheriting the last bearing's corrections and shaft/relief configuration. Existing dimension-only records cannot recover settings that were never saved; save them again to retain custom values.
+- Format catalog dimensions without trailing zeros or floating-point display artifacts.
+
+Validation: 135 automated tests pass, including full parameter/profile/metadata loading, delayed-event preservation and legacy resets. Native Fusion switching and reopening remain to be checked.
+
 ## 0.4.2 - 2026-11-05
 
 - Record the owner's successful automatic German selection in German Fusion.

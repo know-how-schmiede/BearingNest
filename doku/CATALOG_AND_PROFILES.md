@@ -17,7 +17,9 @@ No inner-ring outside/shoulder dimension is inferred from these principal dimens
 
 ## Bearing Seat tab
 
-Search accepts designation, manufacturer, part number and dimensions. All space-separated terms must match. Select a bearing to populate bore, outside diameter and width; fit corrections, shaft allowance and manual inner-ring relief remain separate. Direct dimension edits override the chosen record for this seat without changing the library. The saved bearing snapshot contains the effective dimensions, original catalog dimensions, record identity, source and an override flag.
+Search accepts designation, manufacturer, part number and dimensions. All space-separated terms must match. As of 0.4.3, explicitly selecting a catalog bearing replaces every stored seat parameter in the form: dimensions, fit/axial corrections, land count/angle/rotation, radial relief, radius, chamfer, shaft mode/allowance/depth and inner-ring relief switch/diameter/depth. It also restores the stored print profile, Auto flags, bearing name and metadata editors in Settings. Stored effective values are restored exactly, without recalculating Auto fields on load. Later explicit profile changes still update Auto fields. Face/position selections and the preview switch remain command controls, independent of the bearing preset.
+
+Built-in and older dimension-only entries have no historical seat settings to recover. Selecting one uses its d/D/B with the standard seat values (including 0.4 mm chamfer, shaft Off, inner relief disabled and bore-equal pending diameter), the packaged provisional print profile and three enabled Auto flags. This prevents settings leaking from the previously selected bearing. Unknown ring dimensions remain unknown. To retain custom fit/shaft/relief settings for future use, save a complete named preset again. Direct edits affect this command only until explicitly saved. The saved seat snapshot contains effective dimensions, original catalog dimensions, record identity, source and an override flag.
 
 Select **Manual dimensions** to disconnect catalog provenance while retaining current dimensions. Unknown inner-ring geometry remains unknown. The existing bore-equal relief preset and explicit manual drawing-based relief diameter remain in effect; even a custom record's known ring dimension does not automatically choose an uncalibrated radial clearance.
 
@@ -29,11 +31,13 @@ Each print-derived field has an Auto checkbox. Editing its effective value switc
 | Transition radius | 1 x nozzle diameter |
 | Inner-ring relief depth | 2 x layer height |
 
-The initial profile uses a 0.4 mm nozzle and 0.2 mm layers. Factors are editable in Settings; the dialog displays factors and resulting millimetres. Positive finite inputs are required. Infeasible contours are rejected, never silently clamped. Layer counts have physical meaning only when the seat axis aligns with print Z. These suggestions still require printed trials.
+The initial profile uses a 0.4 mm nozzle and 0.2 mm layers. Profile selection, Auto checkboxes, reset and factor editors are under Settings. Positive finite inputs are required. Infeasible contours are rejected, never silently clamped. Layer counts have physical meaning only when the seat axis aligns with print Z. These suggestions still require printed trials.
 
 The wall-warning factor starts at a provisional 2 x nozzle. In 0.3.0 this was stored for future use. Version 0.4.0 uses it for [conservative advisory margin probes](PREVIEW_AND_WALLS.md); these do not measure exact minimum wall thickness or establish a safe structural limit.
 
 ## Settings tab
+
+Both **Save parameters to bearing catalog** below the preview status and **Save custom bearing with current d/D/B** in Settings now store a complete seat preset, profile snapshot and Auto flags. The first creates a new identity under the entered bearing name; the Settings action updates an existing custom ID or creates one when empty. Neither action silently updates existing geometry. Catalog selection fills the metadata editors automatically; the separate metadata-load action remains available.
 
 - To create a custom bearing, set d/D/B on Bearing Seat, fill its designation and optional manufacturer, part number, source/drawing, notes and purchasing URL in Settings. Leave Custom ID empty, then use **Save custom bearing with current d/D/B**. The optional ring outside diameter uses 0 in the editor for unknown and JSON null in storage.
 - To copy a seed or edit a custom record, select it on Bearing Seat and use **Load selected bearing metadata**. Seed copies receive new custom IDs; custom records retain their ID. Save updates that custom ID. Clear Custom ID to create a separate record. Seed aliases cannot be updated or deleted.
@@ -59,7 +63,7 @@ Each committed seat stores independent bearing/profile copies and the three Auto
 ## Acceptance in Fusion (pending)
 
 1. Update the complete add-in folder, restart and confirm BearingNest 0.3.0 and exactly three tabs. Repeat the existing 0.2.0 geometry/edit acceptance separately.
-2. Search/select each seed size and check d/D/B and source. Try manual dimension overrides. Confirm fit corrections are unchanged and the bore-equal inner-ring relief remains pending rather than inventing a ring dimension.
+2. Search/select each seed size and check d/D/B, source and reset to standard seat/profile values. Save two custom entries with distinct corrections, land count, shaft/relief modes and profile/Auto flags, using both save actions. Switch between them and confirm every stored field, name and metadata editor changes. Repeat after closing/reopening the command and after JSON export/import. Verify no delayed selector events recalculate loaded effective values. The bore-equal inner-ring relief remains pending rather than inventing a ring dimension.
 3. Save a custom bearing with a drawing source, unknown ring diameter and optional short purchasing URL. Close/reopen the command and select it. Update it by ID, copy it to a new ID and delete the copy. Confirm built-ins cannot be overwritten.
 4. Save a second profile with a 0.6 mm nozzle and 0.3 mm layers. Expect suggestions 1.8 / 0.6 / 0.6 mm. Make relief manual at 1.5 mm; switch profiles and confirm only Auto fields change. Reset one field and all fields. A profile can be dimensionally valid but generate an infeasible contour; preview must report the geometry error.
 5. Create a valid batch, save/reopen the design, then modify/delete its library records and profile. Reopen the batch and confirm historical dimensions, source, profile and flags remain. Apply an explicit profile change and verify stable seat IDs, cancel and undo/redo.

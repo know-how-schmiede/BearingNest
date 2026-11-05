@@ -79,8 +79,8 @@ class CatalogDialog:
         records = model.search(model.seed_bearings() + self.data['bearings'],
                                self.fields['catalog_search'].value)
         for record in records:
-            label = (f"{record.get('designation', TEXT['saved_bearing_name'])} | {record.get('d_mm')} x "
-                     f"{record.get('D_mm')} x {record.get('B_mm')} mm | "
+            label = (f"{record.get('designation', TEXT['saved_bearing_name'])} | {record['d_mm']:.12g} x "
+                     f"{record['D_mm']:.12g} x {record['B_mm']:.12g} mm | "
                      f"{record.get('manufacturer') or TEXT['size_alias']} [{record.get('id', 'snapshot')}]")
             self.bearing_choices[label] = record
         if self.bearing and self.bearing not in records:
@@ -169,11 +169,23 @@ class CatalogDialog:
             self._selected_catalog_bearing = label
             self.bearing = deepcopy(self.bearing_choices[label])
             if self.bearing:
-                for key, field in (('d_mm', 'bore_mm'), ('D_mm', 'outside_mm'), ('B_mm', 'width_mm')):
-                    self.fields[field].expression = f'{self.bearing[key]:.12g} mm'
-                self.seat._sync_inner_diameter()
-                if 'seat_preset' in self.bearing:
-                    self._restore_preset(self.bearing['seat_preset'])
+                preset = self.bearing.get('seat_preset')
+                if preset is None:
+                    # Dimension-only records must not inherit the last bearing's
+                    # shaft, relief, fit or print settings.
+                    values = asdict(SeatParameters())
+                    values.update(bore_mm=self.bearing['d_mm'], outside_mm=self.bearing['D_mm'],
+                                  width_mm=self.bearing['B_mm'], inner_diameter_mm=self.bearing['d_mm'],
+                                  chamfer_mm=0.4)
+                    preset = dict(parameters=values, profile=deepcopy(model.DEFAULT_PROFILE),
+                                  auto_flags={key + '_auto': True for key in model.DERIVED})
+                self._restore_preset(preset)
+                self.fields['catalog_save_name'].value = self.bearing['designation']
+                self.fields['custom_id'].value = self.bearing['id'] if self.bearing['id'].startswith('custom-') else ''
+                for field, _ in BEARING_TEXT_FIELDS:
+                    self.fields['custom_' + field].value = self.bearing.get(field, '')
+                self.fields['custom_inner_mm'].expression = f"{self.bearing.get('inner_ring_outside_mm') or 0:.12g} mm"
+                self.save_status.formattedText = ''
         elif identity == 'print_profile':
             label = self.fields[identity].selectedItem.name
             if label == self._selected_print_profile:
@@ -231,6 +243,7 @@ class CatalogDialog:
                 record[key] = self._number(field)
             inner = self._number('custom_inner_mm')
             record['inner_ring_outside_mm'] = None if inner == 0 else inner
+            record['seat_preset'] = self._capture_preset()
             model.validate_bearing(record)
             candidate['bearings'] = [r for r in candidate['bearings'] if r['id'] != record['id']] + [record]
             self._save(candidate)
@@ -290,6 +303,28 @@ class CatalogDialog:
         name = self.fields['catalog_save_name'].value.strip()
         if not name:
             raise ValueError(TEXT['catalog_name_required'])
+        preset = self._capture_preset()
+        parameters = SeatParameters(**preset['parameters'])
+        record = {field: '' for field, _ in BEARING_TEXT_FIELDS}
+        if self.bearing:
+            record.update(deepcopy(self.bearing))
+        # Each explicit save creates a new entry; never overwrite an existing one.
+        record.update(id='custom-' + str(uuid4()), designation=name,
+                      d_mm=parameters.bore_mm, D_mm=parameters.outside_mm,
+                      B_mm=parameters.width_mm)
+        record.setdefault('inner_ring_outside_mm', None)
+        record.pop('catalog_dimensions', None)
+        record.pop('dimensions_overridden', None)
+        record['seat_preset'] = preset
+        model.validate_bearing(record)
+        candidate = deepcopy(self.data)
+        candidate['bearings'].append(record)
+        self._save(candidate)
+        self.bearing = deepcopy(record)
+        self.fields['catalog_search'].value = ''
+        self._choices()
+
+    def _capture_preset(self):
         values = {key: self._number(key, units == 'mm') if units != 'deg'
                   else math.degrees(self.fields[key].value)
                   for key, _, units, _ in PARAMETER_FIELDS}
@@ -302,26 +337,8 @@ class CatalogDialog:
         parameters = SeatParameters(**values)
         parameters.validate()
         parameters.segments()
-        record = {field: '' for field, _ in BEARING_TEXT_FIELDS}
-        if self.bearing:
-            record.update(deepcopy(self.bearing))
-        # Each explicit save creates a new entry; never overwrite a seed or a
-        # similarly named library record as a side effect of saving geometry.
-        record.update(id='custom-' + str(uuid4()), designation=name,
-                      d_mm=parameters.bore_mm, D_mm=parameters.outside_mm,
-                      B_mm=parameters.width_mm)
-        record.setdefault('inner_ring_outside_mm', None)
-        record.pop('catalog_dimensions', None)
-        record.pop('dimensions_overridden', None)
-        record['seat_preset'] = dict(parameters=asdict(parameters),
-                                   profile=deepcopy(self.profile), auto_flags=self.flags())
-        model.validate_bearing(record)
-        candidate = deepcopy(self.data)
-        candidate['bearings'].append(record)
-        self._save(candidate)
-        self.bearing = deepcopy(record)
-        self.fields['catalog_search'].value = ''
-        self._choices()
+        flags = dict(self.flags(), inner_diameter_auto=self.seat._inner_diameter_auto)
+        return dict(parameters=asdict(parameters), profile=deepcopy(self.profile), auto_flags=flags)
 
     def _restore_preset(self, preset):
         values = preset['parameters']
@@ -331,8 +348,11 @@ class CatalogDialog:
             items = self.fields[key].listItems
             for index in range(items.count):
                 item = items.item(index)
-                item.isSelected = item.name == label(str(values[key]))
+                if item.name == label(str(values[key])):
+                    item.isSelected = True
+                    break
         self.fields['inner_relief_enabled'].value = values['inner_relief_enabled']
-        self.seat._inner_diameter_auto = math.isclose(values['inner_diameter_mm'], values['bore_mm'])
+        self.seat._inner_diameter_auto = preset['auto_flags'].get('inner_diameter_auto',
+            math.isclose(values['inner_diameter_mm'], values['bore_mm']))
         self.seat._last_auto_inner_value = values['bore_mm'] / 10 if self.seat._inner_diameter_auto else None
         self.restore(dict(bearing=self.bearing, profile=preset['profile'], auto_flags=preset['auto_flags']))

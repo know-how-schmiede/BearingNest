@@ -2,11 +2,13 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.2** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.3** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+Version 0.4.3 loads all stored seat settings, profile/Auto flags, name and metadata when a catalog entry is selected. Both catalog save actions retain complete presets. Older dimension-only entries load standard seat/profile settings with their bearing dimensions; resave them to retain custom settings. See [catalog behavior and acceptance checks](doku/CATALOG_AND_PROFILES.md).
 
 Version 0.4.2 streamlines Bearing Seat: catalog selection follows the create/edit selector, print-profile controls live under Settings, and new seats start with a 0.4 mm lead-in chamfer. Below preview status, enter a bearing name and click **Save parameters to bearing catalog / Parameter im Lagerkatalog speichern**. This immediately creates a new local entry with dimensions, seat parameters, profile and Auto flags; selecting it restores these values. Geometry Cancel does not undo a library save. Existing dimension-only records remain supported.
 
