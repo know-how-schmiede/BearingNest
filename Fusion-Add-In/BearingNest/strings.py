@@ -193,6 +193,7 @@ TEXT.update(
     short_relief_mm_auto='Auto relief', short_fillet_mm_auto='Auto radius', short_inner_depth_mm_auto='Auto depth',
     tip_preview='Show the seat geometry preview. Switching it off removes the temporary preview; Apply Seats creates the final geometry.',
 )
+TEXT['selection_restore_failed'] = 'The selected face or seat position could not be restored after preview rollback. Select it again.'
 ENGLISH_TEXT = dict(TEXT)
 PARAMETER_FIELDS = list(PARAMETER_FIELDS)
 PROFILE_FIELDS = list(PROFILE_FIELDS)

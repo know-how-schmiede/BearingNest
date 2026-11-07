@@ -152,6 +152,8 @@ TEXT.update(
     tip_preview='Zeigt die Geometrievorschau der Lagersitze. Ausschalten entfernt die temporäre Vorschau; Lagersitze anwenden erstellt die endgültige Geometrie.',
 )
 
+TEXT['selection_restore_failed'] = 'Die ausgewählte Fläche oder Sitzposition konnte nach dem Vorschauwechsel nicht wiederhergestellt werden. Bitte erneut auswählen.'
+
 LABELS = {
     'Bearing outside diameter': 'Lageraußendurchmesser', 'Bearing width': 'Lagerbreite',
     'Diameter correction': 'Durchmesserkorrektur', 'Axial correction': 'Axialkorrektur',

@@ -16,20 +16,28 @@ def short_title(key, title):
 def compact_control(inputs, field, title, *, help_key=None):
     """Place the existing control beside a concise label in equal-width cells."""
     key = help_key or field.id.removeprefix('edit_')
-    table = inputs.addTableCommandInput(field.id + '_row', '', 2, '1:1')
-    table.isFullWidth = True
-    table.minimumVisibleRows = 1
-    table.maximumVisibleRows = 1
-    table.hasGrid = False
-    table.tablePresentationStyle = adsk.core.TablePresentationStyles.transparentBackgroundTablePresentationStyle
+    parent = field.parentCommandInput
+    table_id = (parent.id if parent else 'root') + '_values'
+    table = inputs.itemById(table_id)
+    if table is None:
+        # One native layout container per group, rather than one per value.
+        table = inputs.addTableCommandInput(table_id, '', 2, '1:1')
+        table.isFullWidth = True
+        table.minimumVisibleRows = 1
+        table.hasGrid = False
+        table.tablePresentationStyle = adsk.core.TablePresentationStyles.transparentBackgroundTablePresentationStyle
+    row = table.rowCount
+    table.maximumVisibleRows = row + 1
+    # All rows are known at construction; avoid a flexible table-height range.
+    table.minimumVisibleRows = row + 1
     caption = inputs.addStringValueInput(field.id + '_label', '', short_title(key, title))
     caption.isReadOnly = True
     caption.isFullWidth = True
     field.isFullWidth = True
     tooltip(caption, key, title)
     tooltip(field, key, title)
-    table.addCommandInput(caption, 0, 0)
-    table.addCommandInput(field, 0, 1)
+    table.addCommandInput(caption, row, 0)
+    table.addCommandInput(field, row, 1)
     return field
 
 

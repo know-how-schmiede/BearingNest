@@ -2,13 +2,21 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.6** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.7** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
 
-Version 0.4.6 opens only the bearing-dimensions groups by default; all other groups start collapsed on every command opening. Numeric inputs use separate label/value columns (50:50). Contact-land and shaft-mode selectors align with the right column; Preview and Inner-ring relief checkboxes also use the right column for layout review. Buttons and long field labels use concise wording with their full previous labels retained in tooltips. Seat, catalog and profile values have English/German help describing units, signs and depth references. This layout revision retains version 0.4.6. Native Fusion resizing, checkbox placement and tooltip acceptance remain pending.
+The latest 0.4.7 correction retains source-selection tokens before temporary cuts, addressing face loss when switching Preview off. Explicit face/point changes invalidate the corresponding baseline. The original face-loss error was reproduced directly in Fusion; acceptance of the corrected token handling is pending after updating the add-in.
+
+Native diagnosis of the latest missing-preview report found a Fusion API return mismatch: fireCustomEvent returned False while still delivering its event. The current 0.4.7 queue retains such requests until delivery, keeps the registered event object alive and reports only actual exceptions as enqueue failures. This mismatch was verified directly in Fusion; full value-change preview acceptance after updating the add-in remains pending.
+
+The latest 0.4.7 correction defers explicit preview requests to Fusion's idle queue and coalesces duplicate notifications. It preserves face/multi-point selections across preview rollback while respecting deliberate deselection. This replaces the synchronous request that the owner reported could lose the selected point. Native confirmation of selection preservation is pending; automated tests simulate selection loss before and after the host callback.
+
+Version 0.4.7 now replays an already validated new-seat preview as transient graphics after layout-only group changes, avoiding repeated feature construction. Parameter/selection changes invalidate this copy; Apply Seats always rebuilds and validates real geometry. Existing-batch edits retain full preview rebuilding. The owner trace showed 228–234 ms per repeated preview handler, with further latency outside the handlers. Buffered timings distinguish rebuild/replay in Fusion's Text Commands window after closing. Follow the [diagnostic comparison](doku/INSTALLATION.md#diagnosing-slow-group-expansion-047); native speedup, selection, appearance restoration and cancel/undo acceptance of this replay revision remain pending.
+
+Version 0.4.6 opens only the bearing-dimensions groups by default; all other groups start collapsed on every command opening. Numeric inputs use separate label/value columns (50:50). Contact-land and shaft-mode selectors align with the right column; Preview and Inner-ring relief checkboxes also use the right column for layout review. Buttons and long field labels use concise wording with their full previous labels retained in tooltips. Seat, catalog and profile values have English/German help describing units, signs and depth references. The 42 layout rows share 9 native tables to reduce layout overhead when expanding groups. The shared-table optimization is released as 0.4.7; native expansion speed is not yet measured. Native Fusion resizing, checkbox placement and tooltip acceptance remain pending.
 
 Version 0.4.5 uses a known catalog inner-ring outside diameter as the inner-ring relief diameter suggestion when selecting a bearing. No extra clearance is added. Manual preset values and existing seat snapshots are retained; unknown ring dimensions still use the bore placeholder.
 

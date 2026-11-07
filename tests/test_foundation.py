@@ -56,21 +56,28 @@ class Inputs:
     def __init__(self):
         self.tabs = []
         self.fields = []
+        self.owner = None
+
+    def itemById(self, identity):
+        return next((field for field in self.fields if field.id == identity), None)
 
     def addTabCommandInput(self, identity, label):
         tab = SimpleNamespace(id=identity, label=label, children=Inputs())
+        tab.children.owner = tab
         self.tabs.append(tab)
         return tab
 
     def addGroupCommandInput(self, identity, label):
         group = SimpleNamespace(id=identity, label=label, children=Inputs())
+        group.children.owner = group
         self.fields.append(group)
         return group
 
     def addTableCommandInput(self, identity, label, columns, ratio):
-        table = SimpleNamespace(id=identity, columnRatio=ratio, cells={})
+        table = SimpleNamespace(id=identity, columnRatio=ratio, cells={}, rowCount=0)
         def add(field, row, column):
             table.cells[row, column] = field
+            table.rowCount = max(table.rowCount, row + 1)
             return True
         table.addCommandInput = add
         self.fields.append(table)
@@ -87,7 +94,19 @@ class Inputs:
         return SimpleNamespace()
 
     def addSelectionInput(self, identity, label, prompt):
-        field = SimpleNamespace(id=identity, filters=[], selectionCount=0)
+        field = SimpleNamespace(id=identity, filters=[], selectionCount=0, entities=[])
+        def selection(index):
+            while len(field.entities) <= index:
+                field.entities.append(object())
+            return SimpleNamespace(entity=field.entities[index])
+        def clear():
+            field.entities.clear()
+            field.selectionCount = 0
+        def add(entity):
+            field.entities.append(entity)
+            field.selectionCount = len(field.entities)
+            return True
+        field.selection, field.clearSelection, field.addSelection = selection, clear, add
         field.addSelectionFilter = field.filters.append
         field.setSelectionLimits = lambda minimum, maximum: setattr(field, 'limits', (minimum, maximum))
         self.fields.append(field)
@@ -95,12 +114,13 @@ class Inputs:
 
     def addValueInput(self, identity, label, units, expression):
         field = ValueField(identity, units, expression)
+        field.parentCommandInput = self.owner
         field.name = label
         self.fields.append(field)
         return field
 
     def addDropDownCommandInput(self, identity, label, style):
-        field = SimpleNamespace(id=identity, selectedItem=None)
+        field = SimpleNamespace(id=identity, selectedItem=None, parentCommandInput=self.owner)
         items = []
         class ListItem:
             def __init__(self, name, selected):
@@ -133,12 +153,12 @@ class Inputs:
         return field
 
     def addStringValueInput(self, identity, label, initial=''):
-        field = SimpleNamespace(id=identity, name=label, value=initial)
+        field = SimpleNamespace(id=identity, name=label, value=initial, parentCommandInput=self.owner)
         self.fields.append(field)
         return field
 
     def addBoolValueInput(self, identity, label, checkbox, resource, initial):
-        field = SimpleNamespace(id=identity, name=label, value=initial)
+        field = SimpleNamespace(id=identity, name=label, value=initial, parentCommandInput=self.owner)
         self.fields.append(field)
         return field
 
@@ -156,7 +176,19 @@ class FoundationTests(unittest.TestCase):
         self.ui = SimpleNamespace(commandDefinitions=self.definitions, workspaces=Items())
         self.ui.workspaces.items['FusionSolidEnvironment'] = self.workspace
         core = ModuleType('adsk.core')
-        core.Application = SimpleNamespace(get=lambda: SimpleNamespace(userInterface=self.ui))
+        self.custom_events, self.custom_queue = {}, []
+        def register(identity):
+            event = SimpleNamespace(eventId=identity)
+            self.custom_events[identity] = event
+            return event
+        def fire(identity):
+            self.custom_queue.append(identity)
+            return True
+        def unregister(identity):
+            return self.custom_events.pop(identity, None) is not None
+        self.app = SimpleNamespace(userInterface=self.ui, registerCustomEvent=register,
+            fireCustomEvent=fire, unregisterCustomEvent=unregister)
+        core.Application = SimpleNamespace(get=lambda: self.app)
         core.CommandCreatedEventArgs = object
         core.CommandEventArgs = object
         core.ValueInput = SimpleNamespace(createByString=lambda expression: expression)
@@ -164,11 +196,16 @@ class FoundationTests(unittest.TestCase):
         core.TablePresentationStyles = SimpleNamespace(transparentBackgroundTablePresentationStyle=2)
         adsk = ModuleType('adsk')
         adsk.core = core
+        fusion = ModuleType('adsk.fusion')
+        fusion.Design = SimpleNamespace(cast=lambda value: value)
+        adsk.fusion = fusion
         self.callbacks = []
 
         def add_handler(event, callback, *, local_handlers):
             local_handlers.append(callback)
             self.callbacks.append(callback)
+            if hasattr(event, 'eventId'):
+                event.callback = callback
 
         utilities = ModuleType('foundation.lib.fusionAddInUtils')
         utilities.add_handler = add_handler
@@ -177,7 +214,7 @@ class FoundationTests(unittest.TestCase):
         commands = ModuleType('foundation.commands')
         commands.__path__ = [str(ROOT / 'commands')]
         self.modules = patch.dict(sys.modules, {
-            'adsk': adsk, 'adsk.core': core, 'foundation': package,
+            'adsk': adsk, 'adsk.core': core, 'adsk.fusion': fusion, 'foundation': package,
             'foundation.commands': commands,
             'foundation.lib.fusionAddInUtils': utilities,
         })
@@ -230,9 +267,10 @@ class FoundationTests(unittest.TestCase):
 
     def make_dialog(self):
         inputs = Inputs()
-        command = SimpleNamespace(commandInputs=inputs, destroy=object(),
+        command = SimpleNamespace(commandInputs=inputs, destroy=object(), activate=object(),
                                   validateInputs=object(), inputChanged=object(),
                                   executePreview=object(), execute=object(),
+                                  doExecutePreview=Mock(return_value=True),
                                   setDialogInitialSize=lambda width, height: None)
         with patch.object(self.entry.CatalogDialog.__init__.__globals__['model'], 'load',
                           side_effect=lambda: self.entry.CatalogDialog.__init__.__globals__['model'].defaults()):
@@ -268,18 +306,20 @@ class FoundationTests(unittest.TestCase):
                          {'seat_dimensions_group', 'bearing_dimensions_group'})
         rows = [field for field in all_fields if hasattr(field, 'cells')]
         numeric = [field for field in dialog.fields.values() if isinstance(field, ValueField)]
-        self.assertEqual(len(rows), len(numeric) + 7)
-        controls = {row.cells[0, 1].id for row in rows}
+        self.assertLess(len(rows), len(numeric))
+        self.assertEqual(sum(table.rowCount for table in rows), len(numeric) + 7)
+        controls = {value.id for table in rows for (index, column), value in table.cells.items() if column == 1}
         self.assertTrue({'land_count', 'shaft_mode', 'seat_preview', 'inner_relief_enabled',
                          'edit_land_count', 'edit_shaft_mode', 'edit_inner_relief_enabled'} <= controls)
         for row in rows:
             self.assertEqual(row.columnRatio, '1:1')
-            self.assertEqual((row.minimumVisibleRows, row.maximumVisibleRows), (1, 1))
-            caption, value = row.cells[0, 0], row.cells[0, 1]
-            self.assertTrue(caption.isReadOnly)
-            self.assertIs(dialog.fields[value.id], value)
-            self.assertTrue(value.tooltipDescription)
-            self.assertEqual(caption.tooltipDescription, value.tooltipDescription)
+            self.assertEqual((row.minimumVisibleRows, row.maximumVisibleRows), (row.rowCount, row.rowCount))
+            for index in range(row.rowCount):
+                caption, value = row.cells[index, 0], row.cells[index, 1]
+                self.assertTrue(caption.isReadOnly)
+                self.assertIs(dialog.fields[value.id], value)
+                self.assertTrue(value.tooltipDescription)
+                self.assertEqual(caption.tooltipDescription, value.tooltipDescription)
         # Opening groups manually is local to one command, not the next opening.
         next(field for field in groups if field.id == 'seat_fit_group').isExpanded = True
         _, reopened, _ = self.make_dialog()
@@ -294,9 +334,372 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(dialog.fields['profile_reset'].tooltip, 'Reset all three fields to suggested values')
         fields = inputs.tabs[1].children.fields
         dimensions = next(field for field in fields if field.id == 'bearing_dimensions_group')
-        row = next(field for field in dimensions.children.fields if field.id == 'custom_inner_mm_row')
-        self.assertEqual(row.cells[0, 0].value, 'Inner-ring diameter')
-        self.assertEqual(row.cells[0, 0].tooltip, 'Drawing inner-ring outside diameter (0 = unknown)')
+        table = next(field for field in dimensions.children.fields if field.id == 'bearing_dimensions_group_values')
+        index = next(index for (index, column), field in table.cells.items() if column == 1 and field.id == 'custom_inner_mm')
+        self.assertEqual(table.cells[index, 0].value, 'Inner-ring diameter')
+        self.assertEqual(table.cells[index, 0].tooltip, 'Drawing inner-ring outside diameter (0 = unknown)')
+
+    def test_group_expansion_does_not_process_catalog_or_clear_preview_feedback(self):
+        _, _, dialog = self.make_dialog()
+        with patch.object(dialog, 'clear_feedback') as clear, \
+                patch.object(dialog.catalog, 'process') as process, \
+                patch.object(dialog, '_request') as request:
+            self.change(dialog, 'seat_contour_group')
+        clear.assert_not_called()
+        process.assert_not_called()
+        request.assert_not_called()
+
+    def test_event_timing_is_buffered_until_close_and_keeps_only_recent_callbacks(self):
+        _, _, dialog = self.make_dialog()
+        dialog.app.log = Mock()
+        for _ in range(40):
+            self.change(dialog, 'seat_contour_group')
+        dialog.app.log.assert_not_called()
+        self.assertEqual(dialog.timing.stats['changed'][0], 40)
+        self.assertEqual(len(dialog.timing.recent), 32)
+        self.entry.command_destroy(None)
+        dialog.app.log.assert_called_once()
+        report = dialog.app.log.call_args.args[0]
+        self.assertIn('count=40', report)
+        self.assertIn('seat_contour_group', report)
+        self.assertIn('native layout/rollback excluded', report)
+
+    def test_event_timing_and_logging_failures_do_not_mask_callback_or_cleanup(self):
+        _, _, dialog = self.make_dialog()
+        dialog.timing.record = Mock(side_effect=RuntimeError('diagnostic failure'))
+        self.change(dialog, 'seat_contour_group')
+        dialog.timing.stats['changed'] = [1, 0.001, 0.001]
+        dialog.app.log = Mock(side_effect=RuntimeError('logging unavailable'))
+        self.entry.command_destroy(None)
+        self.assertNotIn(dialog, self.entry._dialogs)
+
+    def test_layout_preview_reuses_graphics_but_execute_always_rebuilds(self):
+        _, _, dialog = self.make_dialog()
+        cache = SimpleNamespace(clear=Mock(), show=Mock(),
+            feedback={'placements': {}, 'warnings': {}, 'issues': {}})
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        request = (object(), SimpleNamespace(body=object()), [object()], parameters)
+        def capture(cuts):
+            dialog._cached_preview = cache
+        with patch.object(dialog, '_request', return_value=request), \
+                patch.object(dialog, '_apply', return_value=[]) as apply, \
+                patch.object(dialog, '_capture_preview', side_effect=capture):
+            dialog.preview(SimpleNamespace())
+            self.change(dialog, 'seat_fit_group')
+            args = SimpleNamespace(isValidResult=True)
+            dialog.preview(args)
+            self.change(dialog, 'seat_contour_group')
+            dialog.preview(args)
+            self.assertFalse(args.isValidResult)
+            self.assertEqual(apply.call_count, 1)
+            self.assertEqual(cache.show.call_count, 2)
+            dialog.execute(SimpleNamespace())
+            self.assertEqual(apply.call_count, 2)
+            apply.assert_called_with(request, persist=True)
+
+    def test_parameter_changes_and_reactivation_invalidate_cached_preview(self):
+        _, _, dialog = self.make_dialog()
+        cache = SimpleNamespace(clear=Mock())
+        dialog._cached_preview, dialog._layout_preview = cache, True
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        with patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            self.change(dialog, 'outside_mm')
+        cache.clear.assert_called_once()
+        self.assertIsNone(dialog._cached_preview)
+        self.assertFalse(dialog._layout_preview)
+        dialog._cached_preview, dialog._layout_preview = cache, True
+        dialog.activated(None)
+        self.assertIsNone(dialog._cached_preview)
+        self.assertFalse(dialog._layout_preview)
+
+    def test_failed_cache_display_falls_back_to_full_preview(self):
+        _, _, dialog = self.make_dialog()
+        cache = SimpleNamespace(clear=Mock(), show=Mock(side_effect=RuntimeError('Unsupported')))
+        dialog._cached_preview, dialog._layout_preview = cache, True
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        request = (1, SimpleNamespace(body=2), [3], parameters)
+        with patch.object(dialog, '_request', return_value=request), \
+                patch.object(dialog, '_apply', return_value=[]) as apply, \
+                patch.object(dialog, '_capture_preview'):
+            dialog.preview(SimpleNamespace())
+        apply.assert_called_once_with(request, persist=False)
+        self.assertIsNone(dialog.geometry_error)
+
+    def test_existing_batch_preview_never_replays_cached_graphics(self):
+        _, _, dialog = self.make_dialog()
+        dialog._editing_records = [object()]
+        cache = SimpleNamespace(clear=Mock(), show=Mock())
+        dialog._cached_preview, dialog._layout_preview = cache, True
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        request = (1, None, dialog._editing_records, parameters)
+        with patch.object(dialog, '_request', return_value=request), \
+                patch.object(dialog, '_apply', return_value=[]) as apply:
+            dialog.preview(SimpleNamespace())
+        cache.show.assert_not_called()
+        apply.assert_called_once_with(request, persist=False)
+
+    def test_parameter_edit_requests_fusion_preview_without_reselecting_position(self):
+        command, _, dialog = self.make_dialog()
+        position = object()
+        dialog.fields['seat_position'].selectionCount = 1
+        old_cache = SimpleNamespace(clear=Mock(), show=Mock())
+        dialog._cached_preview, dialog._layout_preview = old_cache, True
+        parameters = SimpleNamespace(contact_mm=24.9, depth_mm=7)
+        request = (1, SimpleNamespace(body=2), [position], parameters)
+        def host_preview():
+            # Model a synchronous callback plus a generated input notification.
+            self.change(dialog, 'outside_mm')
+            dialog.preview(SimpleNamespace())
+            return True
+        command.doExecutePreview.side_effect = host_preview
+        dialog.fields['outside_mm'].expression = '25 mm'
+        with patch.object(dialog, '_request', return_value=request), \
+                patch.object(dialog, '_apply', return_value=[]) as apply, \
+                patch.object(dialog, '_capture_preview'):
+            self.change(dialog, 'outside_mm')
+            command.doExecutePreview.assert_not_called()
+            apply.assert_not_called()
+            self.drain_preview_queue()
+        command.doExecutePreview.assert_called_once()
+        apply.assert_called_once_with(request, persist=False)
+        old_cache.show.assert_not_called()
+        old_cache.clear.assert_called_once()
+        self.assertEqual(dialog.fields['seat_position'].selectionCount, 1)
+        self.assertFalse(dialog._refreshing)
+        self.assertIsNone(dialog.geometry_error)
+
+    def test_table_options_and_preview_toggle_explicitly_refresh_geometry(self):
+        command, _, dialog = self.make_dialog()
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        request = (1, SimpleNamespace(body=2), [object()], parameters)
+        command.doExecutePreview.side_effect = lambda: dialog.preview(SimpleNamespace())
+        with patch.object(dialog, '_request', return_value=request), \
+                patch.object(dialog, '_apply', return_value=[]) as apply, \
+                patch.object(dialog, '_capture_preview'):
+            dialog.fields['shaft_mode'].selectedItem.name = 'Blind'
+            self.change(dialog, 'shaft_mode')
+            self.drain_preview_queue()
+            self.assertEqual(apply.call_count, 1)
+            dialog.fields['inner_relief_enabled'].value = True
+            self.change(dialog, 'inner_relief_enabled')
+            self.drain_preview_queue()
+            self.assertEqual(apply.call_count, 2)
+            dialog.fields['seat_preview'].value = False
+            self.change(dialog, 'seat_preview')
+            self.drain_preview_queue()
+            self.assertEqual(apply.call_count, 2)
+            dialog.fields['seat_preview'].value = True
+            self.change(dialog, 'seat_preview')
+            self.drain_preview_queue()
+            self.assertEqual(apply.call_count, 3)
+        self.assertEqual(command.doExecutePreview.call_count, 4)
+        self.assertIsNone(dialog.geometry_error)
+
+    def test_groups_validation_and_inactive_preview_do_not_force_rebuild(self):
+        command, _, dialog = self.make_dialog()
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        with patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            self.change(dialog, 'seat_fit_group')
+            dialog.validate(SimpleNamespace())
+            dialog.fields['seat_preview'].value = False
+            self.change(dialog, 'outside_mm')
+        command.doExecutePreview.assert_not_called()
+
+    def test_failed_explicit_preview_request_releases_reentrancy_guard(self):
+        command, _, dialog = self.make_dialog()
+        command.doExecutePreview.side_effect = RuntimeError('Preview request failed')
+        dialog._refresh_preview('shaft_mode')
+        self.drain_preview_queue()
+        self.assertFalse(dialog._refreshing)
+        self.assertEqual(dialog.geometry_error, 'Preview request failed')
+
+    def test_idle_preview_restores_face_and_multiple_points_across_host_rollback(self):
+        command, _, dialog = self.make_dialog()
+        face = SimpleNamespace(isValid=True, entityToken='face')
+        points = [SimpleNamespace(isValid=True, entityToken='point1'),
+                  SimpleNamespace(isValid=True, entityToken='point2')]
+        dialog.fields['seat_face'].addSelection(face)
+        for point in points:
+            dialog.fields['seat_position'].addSelection(point)
+        replacements = {'face': [SimpleNamespace(isValid=True, entityToken='face')],
+                        'point1': [SimpleNamespace(isValid=True, entityToken='point1')],
+                        'point2': [SimpleNamespace(isValid=True, entityToken='point2')]}
+        dialog.app.activeProduct = SimpleNamespace(findEntityByToken=lambda token: replacements[token])
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        observed = []
+        def request(**kwargs):
+            selected = [dialog.fields['seat_position'].selection(i).entity
+                        for i in range(dialog.fields['seat_position'].selectionCount)]
+            if command.doExecutePreview.call_count:
+                self.assertEqual(selected, [replacements['point1'][0], replacements['point2'][0]])
+                observed.append(selected)
+            return (1, face, selected, parameters)
+        def host_preview():
+            dialog.fields['seat_face'].clearSelection()
+            dialog.fields['seat_position'].clearSelection()
+            face.isValid = False
+            for point in points:
+                point.isValid = False
+            dialog.preview(SimpleNamespace())
+            # Some hosts clear selection again while completing the forced call.
+            dialog.fields['seat_position'].clearSelection()
+            return True
+        command.doExecutePreview.side_effect = host_preview
+        with patch.object(dialog, '_request', side_effect=request), \
+                patch.object(dialog, '_apply', return_value=[]) as apply, \
+                patch.object(dialog, '_capture_preview'):
+            self.change(dialog, 'shaft_mode')
+            self.drain_preview_queue()
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(dialog.fields['seat_face'].selectionCount, 1)
+        self.assertEqual(dialog.fields['seat_position'].selectionCount, 2)
+        apply.assert_called_once()
+        self.assertIsNone(dialog.geometry_error)
+
+    def test_manual_deselection_cancels_queued_restoration(self):
+        command, _, dialog = self.make_dialog()
+        dialog.fields['seat_position'].addSelection(object())
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        with patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)):
+            self.change(dialog, 'outside_mm')
+            dialog.fields['seat_position'].clearSelection()
+            self.change(dialog, 'seat_position')
+            self.drain_preview_queue()
+        command.doExecutePreview.assert_not_called()
+        self.assertEqual(dialog.fields['seat_position'].selectionCount, 0)
+
+    def test_duplicate_value_events_coalesce_and_native_preview_cancels_idle_request(self):
+        command, _, dialog = self.make_dialog()
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        command.doExecutePreview.side_effect = lambda: dialog.preview(SimpleNamespace())
+        with patch.object(dialog, '_request', return_value=(1, 2, [3], parameters)), \
+                patch.object(dialog, '_apply', return_value=[]) as apply, \
+                patch.object(dialog, '_capture_preview'):
+            self.change(dialog, 'outside_mm')
+            self.change(dialog, 'outside_mm')
+            self.change(dialog, 'shaft_mode')
+            self.assertEqual(len(self.custom_queue), 1)
+            self.drain_preview_queue()
+            command.doExecutePreview.assert_called_once()
+            apply.assert_called_once()
+            self.change(dialog, 'shaft_mode')
+            dialog.preview(SimpleNamespace())  # Fusion already dispatched naturally.
+            self.drain_preview_queue()
+            command.doExecutePreview.assert_called_once()
+            self.assertEqual(apply.call_count, 2)
+
+    def test_destroy_disposes_queued_custom_event_without_rebuilding(self):
+        command, _, dialog = self.make_dialog()
+        dialog._refresh_preview('shaft_mode')
+        self.assertTrue(self.custom_events)
+        self.entry.command_destroy(None)
+        self.assertFalse(self.custom_events)
+        self.drain_preview_queue()
+        command.doExecutePreview.assert_not_called()
+
+    def test_selection_restore_rejects_ambiguous_tokens_without_partial_updates(self):
+        _, _, dialog = self.make_dialog()
+        face = SimpleNamespace(isValid=False, entityToken='face')
+        point = SimpleNamespace(isValid=False, entityToken='point')
+        dialog.app.activeProduct = SimpleNamespace(findEntityByToken=lambda token:
+            [object()] if token == 'face' else [object(), object()])
+        with self.assertRaises(ValueError):
+            dialog._restore_selection({'seat_face': [(face, 'face')], 'seat_position': [(point, 'point')]})
+        self.assertEqual(dialog.fields['seat_face'].selectionCount, 0)
+        self.assertEqual(dialog.fields['seat_position'].selectionCount, 0)
+
+    def test_retained_selection_is_not_resolved_again_against_preview_topology(self):
+        _, _, dialog = self.make_dialog()
+        point = SimpleNamespace(isValid=False, entityToken='original-edge')
+        dialog.fields['seat_position'].addSelection(point)
+        resolver = Mock(return_value=[])
+        dialog.app.activeProduct = SimpleNamespace(findEntityByToken=resolver)
+        dialog._restore_selection({'seat_position': [(point, 'original-edge')]})
+        resolver.assert_not_called()
+        self.assertEqual(dialog.fields['seat_position'].selectionCount, 1)
+
+    def test_queued_preview_failure_releases_pending_state_for_retry(self):
+        command, _, dialog = self.make_dialog()
+        with patch.object(dialog.app, 'fireCustomEvent', side_effect=RuntimeError('Queue API failed')):
+            dialog._refresh_preview('shaft_mode')
+        self.assertFalse(dialog.preview_dispatch.pending)
+        self.assertIn('Queue API failed', dialog.geometry_error)
+        dialog._refresh_preview('shaft_mode')
+        self.drain_preview_queue()
+        command.doExecutePreview.assert_called_once()
+
+    def test_false_enqueue_return_still_delivers_preview_like_native_fusion(self):
+        command, _, dialog = self.make_dialog()
+        enqueue = dialog.app.fireCustomEvent
+        def native_false_return(identity):
+            enqueue(identity)
+            return False
+        self.assertIs(dialog.preview_dispatch.event, self.custom_events[dialog.preview_dispatch.event_id])
+        with patch.object(dialog.app, 'fireCustomEvent', side_effect=native_false_return):
+            dialog._refresh_preview('shaft_mode')
+        self.assertTrue(dialog.preview_dispatch.pending)
+        self.assertIsNone(dialog.geometry_error)
+        command.doExecutePreview.assert_not_called()
+        self.drain_preview_queue()
+        command.doExecutePreview.assert_called_once()
+        self.assertFalse(dialog.preview_dispatch.pending)
+        self.entry.command_destroy(None)
+        self.assertIsNone(dialog.preview_dispatch.event)
+
+    def test_preview_off_restores_source_face_token_not_temporary_cut_topology(self):
+        command, _, dialog = self.make_dialog()
+        face = SimpleNamespace(isValid=True, entityToken='source-face')
+        point = SimpleNamespace(isValid=True, entityToken='source-point')
+        restored_face = SimpleNamespace(isValid=True, entityToken='source-face')
+        dialog.fields['seat_face'].addSelection(face)
+        dialog.fields['seat_position'].addSelection(point)
+        def resolve(token):
+            if token == 'source-face':
+                return [restored_face]
+            if token == 'source-point':
+                return [point]
+            raise AssertionError('Temporary preview token must not be used after rollback')
+        dialog.app.activeProduct = SimpleNamespace(findEntityByToken=resolve)
+        parameters = SimpleNamespace(contact_mm=21.9, depth_mm=7)
+        def request(**kwargs):
+            return (dialog.app.activeProduct, dialog.fields['seat_face'].selection(0).entity,
+                    [point], parameters)
+        def build(request, **kwargs):
+            # Model a selected face whose token changes when cut-preview features
+            # modify its topology. The stored source token must remain unchanged.
+            face.entityToken = 'temporary-preview-face'
+            return []
+        def rollback_and_preview():
+            face.isValid = False
+            dialog.fields['seat_face'].clearSelection()
+            dialog.preview(SimpleNamespace())
+            return True
+        command.doExecutePreview.side_effect = rollback_and_preview
+        with patch.object(dialog, '_request', side_effect=request), \
+                patch.object(dialog, '_apply', side_effect=build) as apply, \
+                patch.object(dialog, '_capture_preview'):
+            dialog.preview(SimpleNamespace())
+            self.assertEqual(dialog._selection_baseline['seat_face'][0][1], 'source-face')
+            dialog.fields['seat_preview'].value = False
+            self.change(dialog, 'seat_preview')
+            self.drain_preview_queue()
+        apply.assert_called_once()
+        self.assertIs(dialog.fields['seat_face'].selection(0).entity, restored_face)
+        self.assertEqual(dialog.fields['seat_position'].selectionCount, 1)
+        self.assertFalse(dialog.fields['seat_preview'].value)
+        self.assertIsNone(dialog.geometry_error)
+
+    def test_explicit_face_replacement_discards_prior_source_token(self):
+        _, _, dialog = self.make_dialog()
+        old_face = SimpleNamespace(isValid=True, entityToken='old-face')
+        new_face = SimpleNamespace(isValid=True, entityToken='new-face')
+        dialog._selection_baseline['seat_face'] = [(old_face, 'old-face')]
+        dialog.fields['seat_face'].addSelection(new_face)
+        self.change(dialog, 'seat_face')
+        self.assertEqual(dialog._capture_selection()['seat_face'][0][1], 'new-face')
+        dialog.fields['seat_face'].clearSelection()
+        self.change(dialog, 'seat_face')
+        self.assertEqual(dialog._capture_selection()['seat_face'], [])
 
     def test_execute_failure_marks_entire_command_transaction_for_abort(self):
         command, inputs, dialog = self.make_dialog()
@@ -312,6 +715,16 @@ class FoundationTests(unittest.TestCase):
 
     def change(self, dialog, identity):
         dialog.changed(SimpleNamespace(input=SimpleNamespace(id=identity)))
+
+    def drain_preview_queue(self):
+        for _ in range(50):
+            if not self.custom_queue:
+                return
+            identity = self.custom_queue.pop(0)
+            event = self.custom_events.get(identity)
+            if event is not None:
+                event.callback(SimpleNamespace())
+        self.fail('Preview queue did not settle')
 
     def select_catalog_bearing(self, dialog, designation):
         label = next(label for label, record in dialog.catalog.bearing_choices.items()

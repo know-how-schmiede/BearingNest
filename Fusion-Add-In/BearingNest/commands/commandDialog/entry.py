@@ -7,6 +7,7 @@ from ...version import VERSION
 from ...strings import TEXT, configure_from_fusion
 from .seat_dialog import SeatDialog
 from .catalog_dialog import CatalogDialog
+from .deferred_preview import DeferredPreview
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -90,9 +91,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs = command.commandInputs
 
     seat = inputs.addTabCommandInput('bearing_seat_tab', TEXT['bearing_seat']).children
-    dialog = SeatDialog(seat, app)
+    dialog = SeatDialog(seat, app, command=command)
     _dialogs.append(dialog)
-    for event, callback in ((command.validateInputs, dialog.validate),
+    dialog.preview_dispatch = DeferredPreview(app, dialog.flush_preview, futil.add_handler)
+    for event, callback in ((command.activate, dialog.activated),
+                            (command.validateInputs, dialog.validate),
                             (command.inputChanged, dialog.changed),
                             (command.executePreview, dialog.preview),
                             (command.execute, dialog.execute)):
@@ -130,7 +133,9 @@ def _clear_dialogs():
     failures = []
     for dialog in list(_dialogs):
         try:
+            dialog.cancel_preview_requests(close=True)
             dialog.clear_feedback()
+            dialog.report_timing()
             _dialogs.remove(dialog)
         except Exception as error:
             failures.append(str(error))

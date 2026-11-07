@@ -6,15 +6,23 @@ from ...seat_parameters import SeatParameters
 from ...strings import TEXT, PARAMETER_FIELDS, label, source_label
 from ...seat_feedback import new_feedback
 from .input_layout import compact_value, compact_control, short_title, tooltip
+from .event_timing import EventTiming, timed_event
 
 
 class SeatDialog:
-    def __init__(self, inputs, app):
+    def __init__(self, inputs, app, *, command=None):
         self.app = app
+        self.command = command
+        self.preview_dispatch = None
+        self._pending_selection = None
+        self._selection_baseline = {}
+        self.timing = EventTiming()
         self.fields = {}
         self.catalog = None
         self.feedback = new_feedback()
         self._graphics = None
+        self._cached_preview = None
+        self._layout_preview = False
         self._refreshing = False
         self._inner_diameter_auto = True
         self._last_auto_inner_value = None
@@ -96,7 +104,6 @@ class SeatDialog:
                 self.fields[identity] = compact_value(inputs, identity, label, units, expression)
 
     def _request(self, *, check_placement=True):
-        from ... import seat_geometry
         import adsk.fusion
         face = self.fields['seat_face']
         position = self.fields['seat_position']
@@ -126,6 +133,7 @@ class SeatDialog:
         selected_face = face.selection(0).entity
         selected_positions = [position.selection(index).entity for index in range(position.selectionCount)]
         if check_placement:
+            from ... import seat_geometry
             for index, selected_position in enumerate(selected_positions, 1):
                 try:
                     seat_geometry.placement(design, selected_face, selected_position)
@@ -174,15 +182,34 @@ class SeatDialog:
             finally:
                 self._refreshing = was_refreshing
 
+    @timed_event
     def changed(self, args):
-        if self._refreshing or args.input.id not in self.fields:
+        if self._refreshing:
             return
+        if args.input.id not in self.fields:
+            if args.input.id.endswith('_group'):
+                self._layout_preview = True
+            return
+        if args.input.id in ('seat_face', 'seat_position', 'seat_batch'):
+            # A genuine selection change takes precedence over pending restoration.
+            self.cancel_preview_requests()
+            if args.input.id == 'seat_batch':
+                self._selection_baseline.clear()
+            else:
+                self._selection_baseline.pop(args.input.id, None)
+        selection = self._capture_selection()
         try:
-            self.clear_feedback()
+            self._refreshing = True
+            try:
+                self.clear_feedback()
+            finally:
+                self._refreshing = False
         except Exception as error:
             self.geometry_error = str(error)
             self._set_status(escape(str(error)))
             return
+        self._cached_preview = None
+        self._layout_preview = False
         self.geometry_error = None
         if self.catalog:
             self._refreshing = True
@@ -253,6 +280,119 @@ class SeatDialog:
         except Exception as error:
             self._set_status(escape(str(error)))
 
+        self._refresh_preview(args.input.id, selection)
+
+    def _refresh_preview(self, identity, selection=None):
+        """Table controls need an explicit preview request on affected hosts."""
+        geometry_inputs = {key for key, *_ in PARAMETER_FIELDS}
+        geometry_inputs.update(('land_count', 'shaft_mode', 'inner_relief_enabled',
+            'seat_preview', 'seat_batch', 'catalog_bearing', 'print_profile',
+            'profile_reset', 'profile_save', 'relief_mm_auto', 'fillet_mm_auto', 'inner_depth_mm_auto'))
+        if self.command is None or identity not in geometry_inputs:
+            return
+        if not self.fields['seat_preview'].value and identity != 'seat_preview':
+            return
+        if self.preview_dispatch is None:
+            return
+        if self._pending_selection is None:
+            self._pending_selection = selection if selection is not None else self._capture_selection()
+        try:
+            self.preview_dispatch.request()
+        except Exception as error:
+            self.geometry_error = str(error)
+            self._set_status(escape(str(error)))
+
+    def cancel_preview_requests(self, *, close=False):
+        self._pending_selection = None
+        if self.preview_dispatch is not None:
+            if close:
+                self.preview_dispatch.close()
+            else:
+                self.preview_dispatch.cancel()
+
+    def _capture_selection(self):
+        if self._editing_records:
+            return {}
+        result = {}
+        for identity in ('seat_face', 'seat_position'):
+            field = self.fields[identity]
+            if not getattr(field, 'isVisible', True):
+                continue
+            result[identity] = []
+            baseline = self._selection_baseline.get(identity, [])
+            for index in range(field.selectionCount):
+                entity = field.selection(index).entity
+                # A feature preview can replace the selected face's topology and
+                # token. Keep the source token captured BEFORE cutting, until an
+                # actual selection edit invalidates that selector's baseline.
+                token = (baseline[index][1] if len(baseline) == field.selectionCount
+                         else getattr(entity, 'entityToken', None))
+                result[identity].append((entity, token))
+        return result
+
+    def _restore_selection(self, snapshot):
+        if not snapshot or self._editing_records:
+            return
+        design = getattr(self.app, 'activeProduct', None)
+        if design is not None:
+            import adsk.fusion
+            design = adsk.fusion.Design.cast(design)
+        resolved = {}
+        for identity, entries in snapshot.items():
+            if not getattr(self.fields[identity], 'isVisible', True):
+                continue
+            field = self.fields[identity]
+            current = [field.selection(i).entity for i in range(field.selectionCount)]
+            if current == [entity for entity, _ in entries]:
+                # Do not re-resolve topology against already-applied preview cuts
+                # when Fusion has retained the original selection correctly.
+                continue
+            resolved[identity] = []
+            for entity, token in entries:
+                if token is not None:
+                    if design is None:
+                        raise ValueError(TEXT['selection_restore_failed'])
+                    matches = design.findEntityByToken(token)
+                    if len(matches) != 1:
+                        raise ValueError(TEXT['selection_restore_failed'])
+                    entity = matches[0]
+                if not getattr(entity, 'isValid', True):
+                    raise ValueError(TEXT['selection_restore_failed'])
+                resolved[identity].append(entity)
+        # Resolve every entity before changing any selection; never choose a match
+        # arbitrarily or restore a user deselection from an older queued request.
+        for identity, entities in resolved.items():
+            field = self.fields[identity]
+            current = [field.selection(i).entity for i in range(field.selectionCount)]
+            if current == entities:
+                continue
+            if current:
+                field.clearSelection()
+            for entity in entities:
+                if not field.addSelection(entity):
+                    raise ValueError(TEXT['selection_restore_failed'])
+            snapshot[identity] = [(entity, token) for entity, (_, token)
+                                  in zip(entities, snapshot[identity])]
+
+    @timed_event
+    def flush_preview(self, args):
+        if self.command is None:
+            return
+        selection = self._pending_selection
+        # Invoke Fusion's event only after inputChanged has returned. Fusion still
+        # owns rollback; preview() restores selectors after that rollback as needed.
+        was_refreshing = self._refreshing
+        self._refreshing = True
+        try:
+            self.command.doExecutePreview()
+            self._restore_selection(selection)
+        except Exception as error:
+            self.geometry_error = str(error)
+            self._set_status(escape(str(error)))
+        finally:
+            self._refreshing = was_refreshing
+
+    @timed_event
     def validate(self, args):
         # This event must only set areInputsValid. Updating a text box here can
         # invalidate the dialog again, leaving OK disabled despite a "ready" message.
@@ -268,17 +408,41 @@ class SeatDialog:
             # inputChanged and executePreview own error/status text updates.
             pass
 
+    @timed_event
     def preview(self, args):
         # Always rebuild in execute, so previews never commit without the seat snapshot.
         args.isValidResult = False
         self.geometry_error = None
         request = None
         try:
+            selection = self._pending_selection
+            self.cancel_preview_requests()
             self.clear_feedback()
+            was_refreshing = self._refreshing
+            self._refreshing = True
+            try:
+                self._restore_selection(selection)
+            finally:
+                self._refreshing = was_refreshing
             if not self.fields['seat_preview'].value:
                 return
             request = self._request(check_placement=False)
-            self._apply(request, persist=False)
+            reused = False
+            if self._layout_preview and self._cached_preview is not None and not self._editing_records:
+                try:
+                    with self.timing.measure('preview_replay'):
+                        self._cached_preview.show(request[0], request[1].body)
+                        self.feedback = self._cached_preview.feedback
+                    reused = True
+                except Exception:
+                    # Restore the body before attempting the full feature preview.
+                    self._cached_preview.clear()
+                    self._cached_preview = None
+            if not reused:
+                self._selection_baseline = self._capture_selection()
+                with self.timing.measure('preview_rebuild'):
+                    cuts = self._apply(request, persist=False)
+                    self._capture_preview(cuts)
             parameters = request[-1]
             message = TEXT['preview_ready'].format(
                 diameter=parameters.contact_mm, depth=parameters.depth_mm, count=len(request[2]))
@@ -293,8 +457,10 @@ class SeatDialog:
                 message += self._feedback_message(request)
             self._set_status(message)
 
+    @timed_event
     def execute(self, args):
         try:
+            self.cancel_preview_requests()
             self.clear_feedback()
             self._apply(self._request(check_placement=False), persist=True)
         except Exception as error:
@@ -321,9 +487,40 @@ class SeatDialog:
         return seat_geometry.create_seats(*request, persist=persist, **options)
 
     def clear_feedback(self):
+        if self._cached_preview is not None:
+            self._cached_preview.clear()
         if self._graphics is not None:
             self._graphics.clear()
         self.feedback = new_feedback()
+
+    def _capture_preview(self, cuts):
+        self._cached_preview = None
+        if self._editing_records:
+            return
+        try:
+            from ...cached_preview import CachedPreview
+            # Feature bodies reflect the final result at the current timeline end,
+            # including later chamfer/shaft/relief cuts on the same root body.
+            self._cached_preview = CachedPreview(cuts[-1].bodies.item(0), self.feedback)
+        except Exception:
+            # Caching is optional; an unsupported host keeps its validated preview.
+            pass
+
+    def activated(self, args):
+        # An intervening command/document activation must not reuse stale geometry.
+        self.cancel_preview_requests()
+        self.clear_feedback()
+        self._cached_preview = None
+        self._layout_preview = False
+        self._selection_baseline.clear()
+
+    def report_timing(self):
+        if self.timing.stats:
+            try:
+                self.app.log(self.timing.report())
+            except Exception:
+                # Host logging must never prevent command cleanup.
+                pass
 
     def _feedback_message(self, request):
         messages = []

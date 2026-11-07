@@ -21,6 +21,18 @@ Before continuing with 0.5.0, review German layout in Fusion, including Settings
 
 ## Immediate next steps
 
+Preview-off face loss was reproduced natively in 0.4.7 (point retained, "3: invalid argument selection"). Source-selection tokens are now captured before preview cuts and retained across toggles, with explicit selection changes invalidating their baselines. Verify repeated Preview off/on after fresh feature previews and graphics replays, retaining face/all points and allowing Apply Seats while Preview is off. The new native test was cancelled without permanent geometry; corrected-build acceptance is pending.
+
+Native inspection of the missing-preview report found "Could not queue the BearingNest preview." The owner's Fusion host returns False from fireCustomEvent even when the handler is later delivered. Version 0.4.7 now retains pending work until delivery and retains the CustomEvent object/handlers. Re-test value/Blind-mode changes after updating the full add-in: selections must remain, previews must rebuild, and the false queue error must disappear. The API mismatch is confirmed natively; complete corrected-dialog acceptance remains pending.
+
+The subsequent 0.4.7 trace confirms fast graphics replay (maximum 6.4 ms) but the owner reports lost point selection on value changes. The latest correction defers/coalesces explicit preview requests through Fusion's idle/custom-event queue and restores captured face/point selections only across that preview transition. Native selection changes cancel pending restoration. Verify multiple points, circle/vertex references, deliberate deselection, rapid edits, Preview off/on, cancel/apply/undo and event cleanup; native confirmation is pending.
+
+The latest 0.4.7 owner trace confirms faster graphics replay (four calls, 35.1 ms total, 13.7 ms maximum) but shows missing preview callbacks after table-field edits until point reselection. Geometry-affecting input changes now explicitly request Fusion's preview event with a recursion guard. Verify automatic refresh without reselection, including Preview off/on after group replay; native correction acceptance remains pending.
+
+Version 0.4.7 now shares 9 layout tables across 42 rows instead of using one table per row. Compare group expansion speed in Fusion; the container-count reduction and regression tests do not establish a measured native speedup.
+
+The owner reports a modest improvement, with remaining 1–2 second toggles only while geometry preview is active. The supplied trace confirms repeated 228–234 ms preview handlers after group toggles. The current 0.4.7 revision replays a detached validated new-seat body as graphics after layout-only changes, invalidating it on parameter/selection edits and reactivation. Execute always rebuilds. Existing-batch edits retain normal previews. Compare preview_rebuild/preview_replay timings and complete the graphics/opacity/selection/cancel/undo acceptance in INSTALLATION.md; native speedup is not yet confirmed.
+
 Version 0.4.6 makes bearing dimensions the only initially expanded groups, uses 50:50 label/control rows and adds bilingual tooltips. The follow-up layout revision retains version 0.4.6, aligns contact-land/shaft selectors and provisionally moves Preview/Inner-ring relief checkboxes to the right column. Verify both languages at narrow and wide Fusion dialog sizes, including short labels/full tooltips, group expansion, expression editing and preview/edit behavior. Review checkbox placement before deciding whether to retain it.
 
 Version 0.4.5 adds known catalog inner-ring diameter suggestions without extra clearance. Verify selection with known/unknown ring dimensions, manual overrides and preservation of existing seat snapshots in Fusion.
