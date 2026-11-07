@@ -1,7 +1,17 @@
 # Changelog
 
+## 0.4.6 - 2026-11-07
+
+- Open only bearing-dimensions groups by default; start other seat, catalog and settings groups collapsed on every command opening.
+- Lay out numeric values in native borderless table rows with separate label/value columns. At the owner's follow-up request, revise the ratio to 50:50 while retaining version 0.4.6. Align contact-land and shaft-mode selectors in the right column, including the catalog preset editor. Place Preview and Inner-ring relief checkboxes in the right column for native layout review. Preserve input IDs, expression validation and unit conversion.
+- Shorten button and long field labels in both languages; retain their full previous wording as the base tooltip, alongside explanatory help.
+- Add English/German value tooltips, including units, correction signs, face/floor depth references, catalog ring suggestions, profile factors and unknown ring dimensions. Tooltips are available on both labels and value editors; metadata fields also receive contextual help.
+
+Validation: 144 automated tests pass, including initial/reopened group state, equal-column value/selector/checkbox placement, input identity, short-label/full-tooltip preservation and complete bilingual numeric tooltip coverage. Version synchronization passes. Native Fusion resize, tooltip rendering, checkbox layout and preview/edit interaction checks remain pending.
+
 ## 0.4.5 - 2026-11-07
 
+- Document the four owner-supplied German dialog screenshots (Bearing Seat, Bearing Catalog, Settings and Info), with version-specific captions and a README preview. These images predate the 0.4.6 layout changes.
 - On explicit catalog selection, use a known drawing-based inner-ring outside diameter as the relief-diameter suggestion, without adding clearance. Replace only automatic bore placeholders, including those in complete presets; preserve manual preset values and historical seat snapshots.
 - Share preset preparation with the catalog editor. Unknown ring geometry retains the bore-follow placeholder. Catalog-derived suggestions remain editable and are not overwritten by bore changes.
 

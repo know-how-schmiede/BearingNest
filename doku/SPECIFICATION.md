@@ -13,6 +13,8 @@ Select a planar face and one or more supported points or circle centers on that 
 3. **Settings**: reusable named print profiles (nozzle diameter, layer height, relief factors and thin-wall warning threshold) and local JSON import/export, grouped by purpose. Profile selection and Auto/Manual controls for the current seat belong on Bearing Seat.
 4. **Info**: logo, version, purpose, parameter/sign explanations, printing guidance, limitations, project/download and issue links, Know-How-Schmiede YouTube and homepage links.
 
+On each command opening, only bearing-dimensions groups start expanded. Other groups remain manually expandable. Numeric rows reserve separate label/value columns at 50:50 and provide localized tooltips with units, signs and reference points. Contact-land and shaft-mode selectors use the right column too. Preview and inner-ring relief checkboxes provisionally use the right column for native layout review. Buttons and long field labels use concise wording with the previous full wording retained in tooltips.
+
 ## Bearing library
 
 Store designation, bore `d`, outside diameter `D`, width `B`, optional inner-ring outside/shoulder diameter, manufacturer, manufacturer part number, source reference, notes and optional purchasing URL (including user-provided short links). Units are mm. Separate size aliases from manufacturer-specific products; do not imply all same-size bearings have identical internal ring geometry.

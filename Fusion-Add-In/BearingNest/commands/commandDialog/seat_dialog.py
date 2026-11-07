@@ -5,6 +5,7 @@ import adsk.core
 from ...seat_parameters import SeatParameters
 from ...strings import TEXT, PARAMETER_FIELDS, label, source_label
 from ...seat_feedback import new_feedback
+from .input_layout import compact_value, compact_control, short_title, tooltip
 
 
 class SeatDialog:
@@ -22,14 +23,16 @@ class SeatDialog:
         self._batches = {}
         self._editing_records = None
         self._discovery_errors = []
-        chooser = inputs.addDropDownCommandInput('seat_batch', TEXT['edit_batch'],
+        chooser = inputs.addDropDownCommandInput('seat_batch', short_title('seat_batch', TEXT['edit_batch']),
             adsk.core.DropDownStyles.TextListDropDownStyle)
         chooser.listItems.add(TEXT['new_batch'], True, '')
         self.fields['seat_batch'] = chooser
+        tooltip(chooser, 'seat_batch', TEXT['edit_batch'])
         self.fields['catalog_search'] = inputs.addStringValueInput('catalog_search', TEXT['catalog_search'], '')
         self.fields['catalog_search'].tooltip = TEXT['catalog_search_help']
         self.fields['catalog_bearing'] = inputs.addDropDownCommandInput(
-            'catalog_bearing', TEXT['catalog_bearing'], adsk.core.DropDownStyles.TextListDropDownStyle)
+            'catalog_bearing', short_title('catalog_bearing', TEXT['catalog_bearing']), adsk.core.DropDownStyles.TextListDropDownStyle)
+        tooltip(self.fields['catalog_bearing'], 'catalog_bearing', TEXT['catalog_bearing'])
         if getattr(app, 'activeProduct', None) is not None:
             from adsk import fusion
             from ... import seat_edit
@@ -49,6 +52,7 @@ class SeatDialog:
         position.setSelectionLimits(1, 0)
         self.fields.update(seat_face=face, seat_position=position)
         self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', True)
+        compact_control(inputs, self.fields['seat_preview'], TEXT['preview'], help_key='preview')
         dimensions = self._group(inputs, 'seat_dimensions_group', 'bearing_dimensions_group')
         self._add_values(dimensions, {'bore_mm', 'outside_mm', 'width_mm'})
         fit = self._group(inputs, 'seat_fit_group', 'seat_fit_group')
@@ -59,6 +63,7 @@ class SeatDialog:
         for value in (3, 5, 7, 9):
             count.listItems.add(str(value), value == 5, '')
         self.fields['land_count'] = count
+        compact_control(contour, count, TEXT['land_count'])
         self._add_values(contour, {'land_degrees', 'rotation_degrees', 'relief_mm', 'fillet_mm'})
         shaft = self._group(inputs, 'seat_shaft_group', 'seat_shaft_group')
         mode = shaft.addDropDownCommandInput('shaft_mode', TEXT['shaft_mode'],
@@ -66,10 +71,12 @@ class SeatDialog:
         for name in ('Off', 'Through All', 'Blind'):
             mode.listItems.add(label(name), name == 'Off', '')
         self.fields['shaft_mode'] = mode
+        compact_control(shaft, mode, TEXT['shaft_mode'])
         self._add_values(shaft, {'shaft_allowance_mm', 'blind_depth_mm'})
         relief = self._group(inputs, 'seat_relief_group', 'seat_relief_group')
         self.fields['inner_relief_enabled'] = relief.addBoolValueInput(
             'inner_relief_enabled', TEXT['inner_relief_enabled'], True, '', False)
+        compact_control(relief, self.fields['inner_relief_enabled'], TEXT['inner_relief_enabled'])
         self._add_values(relief, {'inner_diameter_mm', 'inner_depth_mm'})
         self._sync_inner_diameter()
         self._refresh_controls()
@@ -80,14 +87,13 @@ class SeatDialog:
 
     def _group(self, inputs, identity, key):
         group = inputs.addGroupCommandInput(identity, TEXT[key])
-        group.isExpanded = True
+        group.isExpanded = key == 'bearing_dimensions_group'
         return group.children
 
     def _add_values(self, inputs, identities):
         for identity, label, units, expression in PARAMETER_FIELDS:
             if identity in identities:
-                self.fields[identity] = inputs.addValueInput(identity, label, units,
-                    adsk.core.ValueInput.createByString(expression))
+                self.fields[identity] = compact_value(inputs, identity, label, units, expression)
 
     def _request(self, *, check_placement=True):
         from ... import seat_geometry

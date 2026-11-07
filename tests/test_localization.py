@@ -51,6 +51,15 @@ class LocalizationTests(unittest.TestCase):
             self.assertEqual(strings.source_label(strings.label(mode)), mode)
             self.assertEqual(strings.source_label(mode), mode)
 
+    def test_numeric_tooltips_cover_seat_catalog_and_profile_fields(self):
+        identities = [row[0] for row in strings.PARAMETER_FIELDS]
+        identities += ['profile_' + row[0] for row in strings.PROFILE_FIELDS]
+        identities += ['custom_inner_mm']
+        for locale in ('en', 'de'):
+            strings.set_locale(locale)
+            for identity in identities:
+                self.assertTrue(strings.TEXT['tip_' + identity], (locale, identity))
+
     def test_fusion_preference_and_missing_preference_fallback(self):
         core = ModuleType('adsk.core')
         core.UserLanguages = SimpleNamespace(GermanLanguage=5)

@@ -21,6 +21,8 @@ Before continuing with 0.5.0, review German layout in Fusion, including Settings
 
 ## Immediate next steps
 
+Version 0.4.6 makes bearing dimensions the only initially expanded groups, uses 50:50 label/control rows and adds bilingual tooltips. The follow-up layout revision retains version 0.4.6, aligns contact-land/shaft selectors and provisionally moves Preview/Inner-ring relief checkboxes to the right column. Verify both languages at narrow and wide Fusion dialog sizes, including short labels/full tooltips, group expansion, expression editing and preview/edit behavior. Review checkbox placement before deciding whether to retain it.
+
 Version 0.4.5 adds known catalog inner-ring diameter suggestions without extra clearance. Verify selection with known/unknown ring dimensions, manual overrides and preservation of existing seat snapshots in Fusion.
 
 Version 0.4.4 reorganizes the UI at the owner's request on 2026-11-07: four tabs, grouped seat controls, an independent catalog editor, general print-profile/data management and Info links. Verify German/English native layout, catalog create/update/delete (including failed saves), separation from active seat settings and hyperlink opening in Fusion before accepting the UI change.

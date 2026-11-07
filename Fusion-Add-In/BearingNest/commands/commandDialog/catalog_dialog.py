@@ -9,6 +9,7 @@ import adsk.core
 from ... import catalog_profiles as model
 from ...strings import TEXT, PROFILE_FIELDS, BEARING_TEXT_FIELDS, PARAMETER_FIELDS, label, source_label
 from ...seat_parameters import SeatParameters
+from .input_layout import compact_value, compact_control, short_title, tooltip
 
 
 class CatalogDialog:
@@ -32,8 +33,7 @@ class CatalogDialog:
             self._bool(seat_profile, field + '_auto', TEXT[field + '_auto'], True)
         self._bool(seat_profile, 'profile_reset', TEXT['profile_reset'], button=True)
         self._string(seat_inputs, 'catalog_save_name', TEXT['catalog_save_name'])
-        self.fields['catalog_save'] = seat_inputs.addBoolValueInput(
-            'catalog_save', TEXT['catalog_save'], False, '', False)
+        self._bool(seat_inputs, 'catalog_save', TEXT['catalog_save'], button=True)
         self.save_status = seat_inputs.addTextBoxCommandInput('catalog_save_status', '', '', 2, True)
         self.save_status.isFullWidth = True
         help_field = catalog.addTextBoxCommandInput('catalog_help', '', TEXT['catalog_help'], 4, True)
@@ -50,8 +50,8 @@ class CatalogDialog:
         preset = self._group(catalog, 'bearing_preset_group', 'bearing_preset_group', expanded=False)
         for key, title, units, expression in PARAMETER_FIELDS:
             parent = dimensions if key in ('bore_mm', 'outside_mm', 'width_mm') else preset
-            self.fields['edit_' + key] = parent.addValueInput('edit_' + key, title, units,
-                adsk.core.ValueInput.createByString(expression))
+            self.fields['edit_' + key] = compact_value(parent, 'edit_' + key, title, units,
+                expression, help_key=key)
         self._value(dimensions, 'custom_inner_mm', TEXT['custom_inner_mm'], 'mm', 0)
         for key, title, values in (('land_count', TEXT['land_count'], (3, 5, 7, 9)),
                                     ('shaft_mode', TEXT['shaft_mode'], ('Off', 'Through All', 'Blind'))):
@@ -86,23 +86,30 @@ class CatalogDialog:
                      if self.load_error else TEXT['settings_location'].format(path=escape(str(model.settings_path()))))
 
     def _string(self, inputs, identity, label, initial=''):
-        self.fields[identity] = inputs.addStringValueInput(identity, label, initial)
+        self.fields[identity] = inputs.addStringValueInput(identity, short_title(identity, label), initial)
+        tooltip(self.fields[identity], identity, label)
 
     def _value(self, inputs, identity, label, units, value):
-        self.fields[identity] = inputs.addValueInput(identity, label, units,
-            adsk.core.ValueInput.createByString(f'{value:.12g} {units}'.strip()))
+        self.fields[identity] = compact_value(inputs, identity, label, units,
+            f'{value:.12g} {units}'.strip())
 
     def _bool(self, inputs, identity, label, initial=False, *, button=False):
-        self.fields[identity] = inputs.addBoolValueInput(identity, label, not button, '', initial)
+        self.fields[identity] = inputs.addBoolValueInput(identity, short_title(identity, label), not button, '', initial)
+        tooltip(self.fields[identity], identity.removeprefix('edit_'), label)
+        if identity == 'edit_inner_relief_enabled':
+            compact_control(inputs, self.fields[identity], label)
 
-    def _group(self, inputs, identity, key, *, expanded=True):
+    def _group(self, inputs, identity, key, *, expanded=None):
         group = inputs.addGroupCommandInput(identity, TEXT[key])
-        group.isExpanded = expanded
+        group.isExpanded = key == 'bearing_dimensions_group' if expanded is None else expanded
         return group.children
 
     def _dropdown(self, inputs, identity, label):
-        self.fields[identity] = inputs.addDropDownCommandInput(identity, label,
+        self.fields[identity] = inputs.addDropDownCommandInput(identity, short_title(identity, label),
             adsk.core.DropDownStyles.TextListDropDownStyle)
+        tooltip(self.fields[identity], identity.removeprefix('edit_'), label)
+        if identity in ('edit_land_count', 'edit_shaft_mode'):
+            compact_control(inputs, self.fields[identity], label)
 
     def _status(self, text):
         self.status.formattedText = text

@@ -67,6 +67,15 @@ class Inputs:
         self.fields.append(group)
         return group
 
+    def addTableCommandInput(self, identity, label, columns, ratio):
+        table = SimpleNamespace(id=identity, columnRatio=ratio, cells={})
+        def add(field, row, column):
+            table.cells[row, column] = field
+            return True
+        table.addCommandInput = add
+        self.fields.append(table)
+        return table
+
     def addTextBoxCommandInput(self, identity, label, text, rows, readonly):
         field = SimpleNamespace(id=identity, text=text, readonly=readonly)
         self.fields.append(field)
@@ -86,6 +95,7 @@ class Inputs:
 
     def addValueInput(self, identity, label, units, expression):
         field = ValueField(identity, units, expression)
+        field.name = label
         self.fields.append(field)
         return field
 
@@ -123,12 +133,12 @@ class Inputs:
         return field
 
     def addStringValueInput(self, identity, label, initial=''):
-        field = SimpleNamespace(id=identity, value=initial)
+        field = SimpleNamespace(id=identity, name=label, value=initial)
         self.fields.append(field)
         return field
 
     def addBoolValueInput(self, identity, label, checkbox, resource, initial):
-        field = SimpleNamespace(id=identity, value=initial)
+        field = SimpleNamespace(id=identity, name=label, value=initial)
         self.fields.append(field)
         return field
 
@@ -151,6 +161,7 @@ class FoundationTests(unittest.TestCase):
         core.CommandEventArgs = object
         core.ValueInput = SimpleNamespace(createByString=lambda expression: expression)
         core.DropDownStyles = SimpleNamespace(TextListDropDownStyle=0)
+        core.TablePresentationStyles = SimpleNamespace(transparentBackgroundTablePresentationStyle=2)
         adsk = ModuleType('adsk')
         adsk.core = core
         self.callbacks = []
@@ -243,6 +254,49 @@ class FoundationTests(unittest.TestCase):
         self.assertTrue(self.entry.local_handlers)
         self.entry.command_destroy(None)
         self.assertFalse(self.entry.local_handlers)
+
+    def test_only_dimensions_start_expanded_and_numeric_rows_reserve_label_space(self):
+        _, inputs, dialog = self.make_dialog()
+        def walk(children):
+            for field in children.fields:
+                yield field
+                if hasattr(field, 'children'):
+                    yield from walk(field.children)
+        all_fields = [field for tab in inputs.tabs for field in walk(tab.children)]
+        groups = [field for field in all_fields if hasattr(field, 'children')]
+        self.assertEqual({field.id for field in groups if field.isExpanded},
+                         {'seat_dimensions_group', 'bearing_dimensions_group'})
+        rows = [field for field in all_fields if hasattr(field, 'cells')]
+        numeric = [field for field in dialog.fields.values() if isinstance(field, ValueField)]
+        self.assertEqual(len(rows), len(numeric) + 7)
+        controls = {row.cells[0, 1].id for row in rows}
+        self.assertTrue({'land_count', 'shaft_mode', 'seat_preview', 'inner_relief_enabled',
+                         'edit_land_count', 'edit_shaft_mode', 'edit_inner_relief_enabled'} <= controls)
+        for row in rows:
+            self.assertEqual(row.columnRatio, '1:1')
+            self.assertEqual((row.minimumVisibleRows, row.maximumVisibleRows), (1, 1))
+            caption, value = row.cells[0, 0], row.cells[0, 1]
+            self.assertTrue(caption.isReadOnly)
+            self.assertIs(dialog.fields[value.id], value)
+            self.assertTrue(value.tooltipDescription)
+            self.assertEqual(caption.tooltipDescription, value.tooltipDescription)
+        # Opening groups manually is local to one command, not the next opening.
+        next(field for field in groups if field.id == 'seat_fit_group').isExpanded = True
+        _, reopened, _ = self.make_dialog()
+        fit = next(field for field in reopened.tabs[0].children.fields if field.id == 'seat_fit_group')
+        self.assertFalse(fit.isExpanded)
+
+    def test_short_labels_keep_full_text_in_tooltips(self):
+        _, inputs, dialog = self.make_dialog()
+        self.assertEqual(dialog.fields['catalog_save'].name, 'Save to catalog')
+        self.assertEqual(dialog.fields['catalog_save'].tooltip, 'Save parameters to bearing catalog')
+        self.assertEqual(dialog.fields['profile_reset'].name, 'Reset')
+        self.assertEqual(dialog.fields['profile_reset'].tooltip, 'Reset all three fields to suggested values')
+        fields = inputs.tabs[1].children.fields
+        dimensions = next(field for field in fields if field.id == 'bearing_dimensions_group')
+        row = next(field for field in dimensions.children.fields if field.id == 'custom_inner_mm_row')
+        self.assertEqual(row.cells[0, 0].value, 'Inner-ring diameter')
+        self.assertEqual(row.cells[0, 0].tooltip, 'Drawing inner-ring outside diameter (0 = unknown)')
 
     def test_execute_failure_marks_entire_command_transaction_for_abort(self):
         command, inputs, dialog = self.make_dialog()

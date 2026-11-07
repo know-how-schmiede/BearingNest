@@ -2,11 +2,13 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.5** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.6** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+Version 0.4.6 opens only the bearing-dimensions groups by default; all other groups start collapsed on every command opening. Numeric inputs use separate label/value columns (50:50). Contact-land and shaft-mode selectors align with the right column; Preview and Inner-ring relief checkboxes also use the right column for layout review. Buttons and long field labels use concise wording with their full previous labels retained in tooltips. Seat, catalog and profile values have English/German help describing units, signs and depth references. This layout revision retains version 0.4.6. Native Fusion resizing, checkbox placement and tooltip acceptance remain pending.
 
 Version 0.4.5 uses a known catalog inner-ring outside diameter as the inner-ring relief diameter suggestion when selecting a bearing. No extra clearance is added. Manual preset values and existing seat snapshots are retained; unknown ring dimensions still use the bore placeholder.
 
@@ -16,7 +18,9 @@ Version 0.4.3 loads all stored seat settings, profile/Auto flags, name and metad
 
 Version 0.4.2 streamlines Bearing Seat: catalog selection follows the create/edit selector, print-profile controls live under Settings, and new seats start with a 0.4 mm lead-in chamfer. Below preview status, enter a bearing name and click **Save parameters to bearing catalog / Parameter im Lagerkatalog speichern**. This immediately creates a new local entry with dimensions, seat parameters, profile and Auto flags; selecting it restores these values. Geometry Cancel does not undo a library save. Existing dimension-only records remain supported.
 
-![BearingNest 0.3.0 with a catalog bearing and a valid three-position preview in Fusion](images/screenshots/04-11-2026_22-13-22.png)
+![BearingNest 0.4.5 German Bearing Seat dialog with grouped parameters and four tabs](images/screenshots/07-11-2026_11-39-16.png)
+
+The owner-supplied 0.4.5 screenshots from 2026-11-07 show all four German tabs: [Bearing Seat, Bearing Catalog, Settings and Info](doku/SCREENSHOTS.md#045-bearing-seat-tab-german). They document the dialog before the 0.4.6 compact-field and startup-group changes; they do not establish acceptance of those later changes.
 
 On 2026-11-04 the owner confirmed the library and editing existing seats, including multiple seats together. See [the new 0.3.0 screenshots and earlier version-specific evidence](doku/SCREENSHOTS.md).
 
@@ -45,7 +49,7 @@ Use the complete [BearingNest add-in folder](Fusion-Add-In/BearingNest). If Fusi
 
 Follow the [installation and test guide](doku/INSTALLATION.md), including the [new clearance tests](doku/SHAFT_AND_RELIEF.md), on a disposable design. Preview and creation were confirmed in 0.1.5 after fixing premature profile suppression. The owner reported a missing Through All shaft in 0.1.6. The owner confirmed shaft opening and inner-ring relief working in 0.1.7. The owner reported no observed errors while testing 0.1.8 on 2026-11-03. This is a general trial report, not a completed matrix of every acceptance case. The bore preset previews/creates the seat and shaft without an additional relief cut; a larger drawing-based diameter enables actual relief.
 
-Target environments are Autodesk Fusion on Windows and macOS with Fusion's bundled Python. No third-party Python packages are required. The latest owner screenshots show Windows and version 0.3.0; the Fusion build was not supplied. Separate chamfer/cancel/undo acceptance, new 0.4.0 graphics and macOS remain unverified.
+Target environments are Autodesk Fusion on Windows and macOS with Fusion's bundled Python. No third-party Python packages are required. The latest owner screenshots show Windows and the German version 0.4.5 dialog; the Fusion build was not supplied. Separate chamfer/cancel/undo acceptance, diagnostic graphics, the 0.4.6 layout changes and macOS remain unverified.
 
 ## Version maintenance
 
@@ -58,7 +62,7 @@ The only manually maintained current release version is [version.py](Fusion-Add-
 - [Roadmap](doku/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Contour A](doku/CONTOUR_PROPOSAL.md)
-- [Screenshots of 0.3.0 and earlier confirmed baselines](doku/SCREENSHOTS.md)
+- [Screenshots of the 0.4.5 dialog, 0.3.0 and earlier confirmed baselines](doku/SCREENSHOTS.md)
 - [Shaft opening and inner-ring relief](doku/SHAFT_AND_RELIEF.md)
 - [Persistence, batch editing and remaining live proof](doku/PERSISTENCE_PROTOTYPE.md)
 - [Bearing catalog, named print profiles and local settings](doku/CATALOG_AND_PROFILES.md)
