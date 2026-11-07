@@ -13,11 +13,13 @@ def short_title(key, title):
     return TEXT.get('short_' + key.removeprefix('edit_'), title)
 
 
-def compact_control(inputs, field, title, *, help_key=None):
-    """Place the existing control beside a concise label in equal-width cells."""
+def compact_control(inputs, field, title, *, help_key=None, section='values'):
+    """Give labels and controls equal column widths."""
     key = help_key or field.id.removeprefix('edit_')
     parent = field.parentCommandInput
-    table_id = (parent.id if parent else 'root') + '_values'
+    # Separate sections keep controls on either side of selections/status/groups
+    # in their original order rather than appending them to the header table.
+    table_id = (parent.id if parent else 'root') + '_' + section
     table = inputs.itemById(table_id)
     if table is None:
         # One native layout container per group, rather than one per value.

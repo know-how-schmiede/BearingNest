@@ -35,12 +35,12 @@ class SeatDialog:
             adsk.core.DropDownStyles.TextListDropDownStyle)
         chooser.listItems.add(TEXT['new_batch'], True, '')
         self.fields['seat_batch'] = chooser
-        tooltip(chooser, 'seat_batch', TEXT['edit_batch'])
+        compact_control(inputs, chooser, TEXT['edit_batch'], help_key='seat_batch', section='header')
         self.fields['catalog_search'] = inputs.addStringValueInput('catalog_search', TEXT['catalog_search'], '')
-        self.fields['catalog_search'].tooltip = TEXT['catalog_search_help']
+        compact_control(inputs, self.fields['catalog_search'], TEXT['catalog_search'], section='header')
         self.fields['catalog_bearing'] = inputs.addDropDownCommandInput(
             'catalog_bearing', short_title('catalog_bearing', TEXT['catalog_bearing']), adsk.core.DropDownStyles.TextListDropDownStyle)
-        tooltip(self.fields['catalog_bearing'], 'catalog_bearing', TEXT['catalog_bearing'])
+        compact_control(inputs, self.fields['catalog_bearing'], TEXT['catalog_bearing'], section='header')
         if getattr(app, 'activeProduct', None) is not None:
             from adsk import fusion
             from ... import seat_edit

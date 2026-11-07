@@ -2,11 +2,15 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.7** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.8** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+The 0.4.8 action buttons (catalog/profile save/delete, reset and import/export) also align with the right-hand control column. Face and position pickers retain Fusion's native placement: SelectionCommandInputs are not supported inside native tables, so those two controls are not exactly aligned to the table columns.
+
+Version 0.4.8 gives shared two-column forms **50:50 label/control widths** across Bearing Seat, Bearing Catalog and Settings, improving label readability. This also includes Bearing Seat's seat mode, search, catalog choice and bearing-name fields, previously left in Fusion's native-width layout. Separate header/Preview/name sections preserve their positions. The owner confirmed the latest 0.4.7 preview/selection flow works; native acceptance of the new column ratio remains pending.
 
 The latest 0.4.7 correction retains source-selection tokens before temporary cuts, addressing face loss when switching Preview off. Explicit face/point changes invalidate the corresponding baseline. The original face-loss error was reproduced directly in Fusion; acceptance of the corrected token handling is pending after updating the add-in.
 

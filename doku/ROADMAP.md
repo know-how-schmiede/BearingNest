@@ -21,6 +21,8 @@ Before continuing with 0.5.0, review German layout in Fusion, including Settings
 
 ## Immediate next steps
 
+The owner confirmed the latest 0.4.7 preview/selection flow works. Version 0.4.8 changes only shared form column widths to 2:1 (label/control); check label readability and usable value-field widths in Fusion, including German profile factors and catalog fields.
+
 Preview-off face loss was reproduced natively in 0.4.7 (point retained, "3: invalid argument selection"). Source-selection tokens are now captured before preview cuts and retained across toggles, with explicit selection changes invalidating their baselines. Verify repeated Preview off/on after fresh feature previews and graphics replays, retaining face/all points and allowing Apply Seats while Preview is off. The new native test was cancelled without permanent geometry; corrected-build acceptance is pending.
 
 Native inspection of the missing-preview report found "Could not queue the BearingNest preview." The owner's Fusion host returns False from fireCustomEvent even when the handler is later delivered. Version 0.4.7 now retains pending work until delivery and retains the CustomEvent object/handlers. Re-test value/Blind-mode changes after updating the full add-in: selections must remain, previews must rebuild, and the false queue error must disappear. The API mismatch is confirmed natively; complete corrected-dialog acceptance remains pending.

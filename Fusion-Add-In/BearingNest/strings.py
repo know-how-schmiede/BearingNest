@@ -194,6 +194,7 @@ TEXT.update(
     tip_preview='Show the seat geometry preview. Switching it off removes the temporary preview; Apply Seats creates the final geometry.',
 )
 TEXT['selection_restore_failed'] = 'The selected face or seat position could not be restored after preview rollback. Select it again.'
+TEXT['tip_catalog_search'] = TEXT['catalog_search_help']
 ENGLISH_TEXT = dict(TEXT)
 PARAMETER_FIELDS = list(PARAMETER_FIELDS)
 PROFILE_FIELDS = list(PROFILE_FIELDS)

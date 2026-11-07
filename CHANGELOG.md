@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.8 - 2026-11-07
+
+- Align catalog save/delete, profile reset/save/delete and import/export buttons in the right column of shared 50:50 action tables. Keep bearing-name and Save to catalog in the same footer table. Native face/position SelectionCommandInputs remain outside tables because Fusion explicitly excludes them; exact right-column alignment of those two selectors is not implemented.
+- Restore shared label/control tables to 50:50 at the owner's follow-up request, including values, selectors and checkboxes across Bearing Seat, Bearing Catalog and Settings. Retain version 0.4.8.
+- Apply the same ratio to the previously native-width Bearing Seat header fields (seat mode, bearing search and catalog choice) and the bearing-name field. Keep header, Preview and name/save controls in separate table sections so moving them does not reorder the dialog. Retain full search help in the field/label tooltip.
+- Record the owner's confirmation that the latest 0.4.7 preview/selection flow works. This confirms the reported trial, not every platform or acceptance case.
+
+Validation: 169 automated tests pass, including shared-table column ratio/placement checks; version synchronization passes. Native acceptance of the revised layout remains pending.
+
 ## 0.4.7 - 2026-11-07
 
 - Native reproduction: switching Preview off drops the face selection, retains the point and reports "3: invalid argument selection". The temporary test was cancelled without applying geometry.

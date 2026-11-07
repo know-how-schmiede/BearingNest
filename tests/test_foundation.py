@@ -307,10 +307,14 @@ class FoundationTests(unittest.TestCase):
         rows = [field for field in all_fields if hasattr(field, 'cells')]
         numeric = [field for field in dialog.fields.values() if isinstance(field, ValueField)]
         self.assertLess(len(rows), len(numeric))
-        self.assertEqual(sum(table.rowCount for table in rows), len(numeric) + 7)
+        self.assertEqual(sum(table.rowCount for table in rows), len(numeric) + 19)
         controls = {value.id for table in rows for (index, column), value in table.cells.items() if column == 1}
         self.assertTrue({'land_count', 'shaft_mode', 'seat_preview', 'inner_relief_enabled',
-                         'edit_land_count', 'edit_shaft_mode', 'edit_inner_relief_enabled'} <= controls)
+                         'edit_land_count', 'edit_shaft_mode', 'edit_inner_relief_enabled',
+                         'seat_batch', 'catalog_search', 'catalog_bearing', 'catalog_save_name',
+                         'catalog_save', 'profile_reset', 'bearing_save', 'bearing_delete',
+                         'profile_save', 'profile_delete', 'settings_import', 'settings_export'} <= controls)
+        self.assertFalse({'seat_face', 'seat_position'} & controls)
         for row in rows:
             self.assertEqual(row.columnRatio, '1:1')
             self.assertEqual((row.minimumVisibleRows, row.maximumVisibleRows), (row.rowCount, row.rowCount))
@@ -848,7 +852,11 @@ class FoundationTests(unittest.TestCase):
         _, inputs, dialog = self.make_dialog()
         seat_ids = [field.id for field in inputs.tabs[0].children.fields]
         settings_ids = [field.id for field in inputs.tabs[2].children.fields]
-        self.assertEqual(seat_ids[:3], ['seat_batch', 'catalog_search', 'catalog_bearing'])
+        header = next(field for field in inputs.tabs[0].children.fields if field.id == 'bearing_seat_tab_header')
+        self.assertEqual([header.cells[i, 1].id for i in range(header.rowCount)],
+                         ['seat_batch', 'catalog_search', 'catalog_bearing'])
+        self.assertLess(seat_ids.index(header.id), seat_ids.index('seat_face'))
+        self.assertLess(seat_ids.index('seat_position'), seat_ids.index('bearing_seat_tab_values'))
         self.assertNotIn('foundation_status', seat_ids)
         self.assertNotIn('geometry_status', seat_ids)
         self.assertNotIn('profile_effective', seat_ids)
@@ -857,7 +865,11 @@ class FoundationTests(unittest.TestCase):
         self.assertIn('print_profile', [field.id for field in profile_group.children.fields])
         self.assertNotIn('print_profile', seat_ids)
         self.assertLess(seat_ids.index('seat_status'), seat_ids.index('catalog_save_name'))
-        self.assertEqual(seat_ids[seat_ids.index('catalog_save_name') + 1], 'catalog_save')
+        footer = next(field for field in inputs.tabs[0].children.fields if field.id == 'bearing_seat_tab_catalog_save')
+        self.assertEqual(footer.cells[0, 1].id, 'catalog_save_name')
+        self.assertIs(footer.cells[1, 1], dialog.fields['catalog_save'])
+        self.assertLess(seat_ids.index('seat_profile_group'), seat_ids.index(footer.id))
+        self.assertLess(seat_ids.index(footer.id), seat_ids.index('catalog_save'))
         self.assertAlmostEqual(dialog.fields['chamfer_mm'].value, 0.04)
         dialog.fields['catalog_save_name'].value = '608 printed seat'
         dialog.fields['land_count'].selectedItem.name = '7'

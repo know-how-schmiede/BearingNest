@@ -13,7 +13,7 @@ Select a planar face and one or more supported points or circle centers on that 
 3. **Settings**: reusable named print profiles (nozzle diameter, layer height, relief factors and thin-wall warning threshold) and local JSON import/export, grouped by purpose. Profile selection and Auto/Manual controls for the current seat belong on Bearing Seat.
 4. **Info**: logo, version, purpose, parameter/sign explanations, printing guidance, limitations, project/download and issue links, Know-How-Schmiede YouTube and homepage links.
 
-On each command opening, only bearing-dimensions groups start expanded. Other groups remain manually expandable. Numeric rows reserve separate label/value columns at 50:50 and provide localized tooltips with units, signs and reference points. Contact-land and shaft-mode selectors use the right column too. Preview and inner-ring relief checkboxes provisionally use the right column for native layout review. Buttons and long field labels use concise wording with the previous full wording retained in tooltips.
+On each command opening, only bearing-dimensions groups start expanded. Other groups remain manually expandable. Numeric rows reserve separate label/value columns at 50:50 and provide localized tooltips with units, signs and reference points. Seat mode, bearing search/catalog selection and bearing name use the same column ratio, with distinct header and footer sections to preserve order. Contact-land and shaft-mode selectors use the right column too. Preview and inner-ring relief checkboxes provisionally use the right column for native layout review. Buttons and long field labels use concise wording with the previous full wording retained in tooltips.
 
 ## Bearing library
 

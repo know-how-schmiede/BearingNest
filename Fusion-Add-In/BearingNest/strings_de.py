@@ -154,6 +154,8 @@ TEXT.update(
 
 TEXT['selection_restore_failed'] = 'Die ausgewählte Fläche oder Sitzposition konnte nach dem Vorschauwechsel nicht wiederhergestellt werden. Bitte erneut auswählen.'
 
+TEXT['tip_catalog_search'] = TEXT['catalog_search_help']
+
 LABELS = {
     'Bearing outside diameter': 'Lageraußendurchmesser', 'Bearing width': 'Lagerbreite',
     'Diameter correction': 'Durchmesserkorrektur', 'Axial correction': 'Axialkorrektur',

@@ -33,6 +33,8 @@ class CatalogDialog:
             self._bool(seat_profile, field + '_auto', TEXT[field + '_auto'], True)
         self._bool(seat_profile, 'profile_reset', TEXT['profile_reset'], button=True)
         self._string(seat_inputs, 'catalog_save_name', TEXT['catalog_save_name'])
+        compact_control(seat_inputs, self.fields['catalog_save_name'], TEXT['catalog_save_name'],
+            section='catalog_save')
         self._bool(seat_inputs, 'catalog_save', TEXT['catalog_save'], button=True)
         self.save_status = seat_inputs.addTextBoxCommandInput('catalog_save_status', '', '', 2, True)
         self.save_status.isFullWidth = True
@@ -96,7 +98,10 @@ class CatalogDialog:
     def _bool(self, inputs, identity, label, initial=False, *, button=False):
         self.fields[identity] = inputs.addBoolValueInput(identity, short_title(identity, label), not button, '', initial)
         tooltip(self.fields[identity], identity.removeprefix('edit_'), label)
-        if identity == 'edit_inner_relief_enabled':
+        if button:
+            compact_control(inputs, self.fields[identity], label,
+                section='catalog_save' if identity == 'catalog_save' else 'actions')
+        elif identity == 'edit_inner_relief_enabled':
             compact_control(inputs, self.fields[identity], label)
 
     def _group(self, inputs, identity, key, *, expanded=None):
