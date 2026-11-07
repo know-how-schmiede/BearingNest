@@ -9,6 +9,16 @@ from .seat_feedback import BatchValidationError, new_feedback, add_message
 from .strings import TEXT
 
 
+def verify_rebuild(design, entities):
+    """Recompute after deleting originals; reject cascaded feature loss/errors."""
+    if not design.computeAll():
+        raise RuntimeError('Fusion could not recompute the replaced seat sequence.')
+    for entity in entities:
+        if (not entity.isValid
+                or entity.healthState != adsk.fusion.FeatureHealthStates.HealthyFeatureHealthState):
+            raise RuntimeError('A replacement feature was lost or became unhealthy; the command must roll back.')
+
+
 def placement(design, face, point_entity):
     if design.designType != adsk.fusion.DesignTypes.ParametricDesignType:
         raise ValueError('The prototype requires a parametric design with design history enabled.')
@@ -391,7 +401,8 @@ def _wall_warnings(manager, body, placements, prepared, parameters, threshold_mm
 
 
 def create_seats(design, face, positions, parameters, *, persist, previous_snapshots=None, auto_flags=None,
-                 bearing=None, profile=None, feedback=None, wall_threshold_mm=0):
+                 bearing=None, profile=None, feedback=None, wall_threshold_mm=0,
+                 generated_entities=None, preserve_metadata=False):
     """Validate every position and pair before the first cut, in one command transaction."""
     parameters.validate()
     if not math.isfinite(wall_threshold_mm) or wall_threshold_mm < 0:
@@ -523,15 +534,20 @@ def create_seats(design, face, positions, parameters, *, persist, previous_snaps
                 snapshot['batch_id'] = batch_id
                 if previous_snapshots:
                     old = previous_snapshots[index]
-                    snapshot = seat_snapshot.revise(old, parameters=snapshot['parameters'],
-                        bearing=bearing if bearing is not None else dict(old['bearing'], D_mm=parameters.outside_mm,
+                    saved_bearing = old['bearing'] if preserve_metadata else bearing
+                    if saved_bearing is None:
+                        saved_bearing = dict(old['bearing'], D_mm=parameters.outside_mm,
                             B_mm=parameters.width_mm,
-                            d_mm=parameters.bore_mm if parameters.shaft_mode != 'Off' else None),
+                            d_mm=parameters.bore_mm if parameters.shaft_mode != 'Off' else None)
+                    snapshot = seat_snapshot.revise(old, parameters=snapshot['parameters'],
+                        bearing=saved_bearing,
                         profile=old['profile'] if profile is None else profile,
                         auto_flags=old['auto_flags'] if auto_flags is None else dict(old['auto_flags'], **auto_flags),
                         references=snapshot['references'], features=snapshot['features'])
                     snapshot['batch_id'] = batch_id
                 seat_storage.save(cut, snapshot)
+        if generated_entities is not None:
+            generated_entities.extend(entity for entity in created if entity.isValid)
         return cuts
     except Exception:
         failures = []

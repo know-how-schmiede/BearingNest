@@ -401,6 +401,96 @@ class FoundationTests(unittest.TestCase):
             self.assertEqual(apply.call_count, 2)
             apply.assert_called_with(request, persist=True)
 
+    def test_preview_reentrancy_is_ignored_and_refresh_guard_restored(self):
+        _, _, dialog = self.make_dialog()
+        def nested(args):
+            self.assertTrue(dialog._refreshing)
+            self.assertTrue(dialog._preview_running)
+            dialog.preview(SimpleNamespace())
+        with patch.object(dialog, '_preview', side_effect=nested) as preview:
+            dialog.preview(SimpleNamespace())
+        self.assertEqual(preview.call_count, 1)
+        self.assertFalse(dialog._preview_running)
+        self.assertFalse(dialog._refreshing)
+
+    def test_failed_preview_restores_reentrancy_guards(self):
+        _, _, dialog = self.make_dialog()
+        with patch.object(dialog, '_preview', side_effect=RuntimeError('failure')):
+            with self.assertRaisesRegex(RuntimeError, 'failure'):
+                dialog.preview(SimpleNamespace())
+        self.assertFalse(dialog._preview_running)
+        self.assertFalse(dialog._refreshing)
+
+    def test_model_build_blocks_recursive_input_and_preview_callbacks(self):
+        _, _, dialog = self.make_dialog()
+        def build(*args, **kwargs):
+            self.assertTrue(dialog._refreshing)
+            dialog.changed(SimpleNamespace(input=SimpleNamespace(id='outside_mm')))
+            dialog.preview(SimpleNamespace())
+            with self.assertRaisesRegex(RuntimeError, 'already running'):
+                dialog._apply((), persist=False)
+            return ['built']
+        with patch.object(dialog, '_apply_model', side_effect=build), \
+                patch.object(dialog, '_request') as request, \
+                patch.object(dialog, '_preview') as preview:
+            self.assertEqual(dialog._apply((), persist=False), ['built'])
+        request.assert_not_called()
+        preview.assert_not_called()
+        self.assertFalse(dialog._model_busy)
+        self.assertFalse(dialog._refreshing)
+
+    def test_failed_model_build_restores_guards(self):
+        _, _, dialog = self.make_dialog()
+        with patch.object(dialog, '_apply_model', side_effect=ValueError('bad geometry')):
+            with self.assertRaisesRegex(ValueError, 'bad geometry'):
+                dialog._apply((), persist=False)
+        self.assertFalse(dialog._model_busy)
+        self.assertFalse(dialog._refreshing)
+
+    def test_edited_multiseat_preview_replays_without_another_sequence_rebuild(self):
+        _, _, dialog = self.make_dialog()
+        body = SimpleNamespace(isValid=True)
+        records = [{'references': {'body': 'original-body'}}] * 3
+        dialog._editing_records = records
+        dialog._cached_body_token = 'original-body'
+        cache = SimpleNamespace(clear=Mock(), show=Mock(),
+            feedback={'placements': {}, 'warnings': {}, 'issues': {}})
+        dialog._cached_preview = cache
+        design = SimpleNamespace(findEntityByToken=lambda token: [body])
+        request = (design, None, records, SimpleNamespace(contact_mm=21.9, depth_mm=7))
+        with patch.object(dialog, '_request', return_value=request), \
+                patch.object(dialog, '_apply') as apply:
+            dialog.preview(SimpleNamespace())
+            self.change(dialog, 'seat_fit_group')
+            dialog.preview(SimpleNamespace())
+            self.change(dialog, 'seat_contour_group')
+            dialog.preview(SimpleNamespace())
+            self.assertEqual(cache.show.call_count, 3)
+            apply.assert_not_called()
+            dialog.execute(SimpleNamespace())
+            apply.assert_called_once_with(request, persist=True)
+
+    def test_edit_cache_capture_requires_a_common_body_and_original_body_token(self):
+        _, _, dialog = self.make_dialog()
+        body, other = object(), object()
+        dialog._editing_records = [{'references': {'body': 'body'}}] * 3
+        dialog._batches = {'selected': dialog._editing_records,
+                           'later': [{'references': {'body': 'other'}}]}
+        mapping = {'body': [body], 'other': [body]}
+        dialog.app.activeProduct = SimpleNamespace(findEntityByToken=lambda token: mapping[token])
+        model = ModuleType('foundation.cached_preview')
+        model.CachedPreview = Mock(return_value=Mock())
+        cuts = [SimpleNamespace(bodies=SimpleNamespace(item=lambda i: body))]
+        with patch.dict(sys.modules, {'foundation.cached_preview': model}):
+            dialog._capture_preview(cuts)
+            self.assertIs(dialog._cached_preview, model.CachedPreview.return_value)
+            self.assertEqual(dialog._cached_body_token, 'body')
+            mapping['other'] = [other]
+            dialog._capture_preview(cuts)
+        self.assertIsNone(dialog._cached_preview)
+        self.assertIsNone(dialog._cached_body_token)
+        self.assertEqual(model.CachedPreview.call_count, 1)
+
     def test_parameter_changes_and_reactivation_invalidate_cached_preview(self):
         _, _, dialog = self.make_dialog()
         cache = SimpleNamespace(clear=Mock())
@@ -1209,7 +1299,7 @@ class FoundationTests(unittest.TestCase):
         self.assertTrue(args.executeFailed)
         self.assertEqual(args.executeFailedMessage, 'edit failure')
         edit.update.assert_called_once_with(1, dialog._editing_records, 4, persist=True,
-            auto_flags={'inner_diameter_auto': True}, feedback=dialog.feedback)
+            batch_choices=dialog._batches, auto_flags={'inner_diameter_auto': True}, feedback=dialog.feedback)
 
     def test_preview_is_on_by_default_can_be_disabled_and_requires_execute(self):
         command, inputs, dialog = self.make_dialog()

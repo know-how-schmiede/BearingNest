@@ -1,5 +1,21 @@
 # Seat persistence prototype
 
+## 0.5.2: edit-preview stability work
+
+The owner confirmed earlier-group editing works, then reported a native Fusion crash while changing values/in preview with multiple seats in one group, and a slow dialog. The cause has not been reproduced or isolated. Version 0.5.2 guards preview/model-building against recursive callbacks and extends transient final-body caching to existing-seat previews when every discovered batch references the same uniquely resolved body. After host rollback, replay resolves the original saved body reference and displays the detached result; group toggles and duplicate unchanged preview callbacks do not rebuild the sequence. Appearance/graphics cleanup remains owned by the dialog. Multiple bodies or unsupported graphics fall back to feature previews. Changed values still rebuild the affected sequence, and Apply always validates/rebuilds/persists.
+
+Native acceptance is pending: repeat the reported multi-seat value edits and group toggles on a copy; verify retained seats, preview freshness, source opacity, Preview off/on, cancellation, apply and undo. Compare preview_replay and preview_rebuild timings. Automated guard/cache tests do not establish crash resolution.
+
+## 0.5.1: earlier-batch editing
+
+Choose an earlier batch in Seat mode to rebuild it and every following BearingNest batch together. Planning proves a contiguous owned timeline suffix and independent placement references before changes. Unrelated features or interleaved placement sketches in that suffix, foreign group contents, unresolved references and existing suppression block the update. Expanded/collapsed groups and ungrouped legacy batches with complete ownership are supported.
+
+All affected cuts are suppressed from last to first. Capture source-reference tokens before replacement cuts, then rebuild chronologically. Only the selected batch receives changed values/catalog/profile options. Successors retain stored parameters, metadata, Auto flags and seat/batch IDs. Positions/faces must resolve uniquely after each preceding replacement; split faces are never guessed.
+
+Originals remain until every replacement succeeds. Failed previews remove successful partial replacements and restore suppression/profile display. Fusion rolls back successful previews. Execute deletes originals, calls Compute All, verifies replacement validity/health and restores separate named groups in order. Execute failure aborts the whole transaction. Earlier-batch previews rebuild every affected group and may take longer. This strategy does not preserve arbitrary external references to regenerated feature entities.
+
+Native trial, pending: use a design copy with three batches and independent source sketch points on several faces. Edit first, middle and last batches. Confirm selected-only value changes, unchanged successor values/IDs, named groups in order and no suppressed originals. Repeat expanded/collapsed groups, Preview off/on, cancel, optional shaft/relief/chamfer changes, save/reopen and one-command undo/redo. Make an early seat conflict with a later seat: require rejection and intact originals. Add an unrelated later extrusion or foreign group member: require refusal before changes. Record Fusion build and OS. Automated tests do not complete this trial.
+
 ## 0.5.0: robust-editing foundation
 
 New snapshots use seat schema 2. The reader explicitly migrates schema 1 into a detached copy: it preserves existing seat/batch IDs and all recorded dimensions and metadata, adds a missing legacy chamfer as 0 mm and missing Auto flags as Manual. A record without a batch ID uses its own seat ID; it is never automatically merged with neighboring seats. Unknown fields and unknown bearing dimensions survive unchanged. Future schemas and malformed records are rejected. Settings JSON keeps its independent schema 1.

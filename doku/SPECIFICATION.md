@@ -4,7 +4,7 @@ Target starting version: 0.1.0. Requirements below are agreed unless marked **pr
 
 ## Placement and workflow
 
-Committed seat batches collect their generated sketches and cuts in one collapsed timeline group, named like the corresponding Seat mode choice. The last complete batch remains editable whether its group is expanded or collapsed. Groups with foreign contents and batches with downstream operations require repair or a later editing strategy; previews create no permanent groups.
+Committed seat batches collect their generated sketches and cuts in one collapsed timeline group, named like the corresponding Seat mode choice. Since 0.5.1, an earlier batch can be edited when it and all following timeline items form a contiguous sequence of complete BearingNest batches with independent placement references. Rebuild in order, changing only selected-batch values and retaining successor snapshots/identities. Expanded/collapsed groups are supported. Foreign contents, arbitrary downstream operations and broken/dependent references block rebuilding; previews create no permanent groups.
 
 Select a planar face and one or more supported points or circle centers on that face. Circle selection supplies a center; bearing dimensions come from the library. Initial multi-placement uses shared settings. Create the seat, concentric shaft opening and inner-ring relief by cutting the selected body. Scope component/assembly transforms explicitly during the API prototype.
 
@@ -76,6 +76,8 @@ Layer multiples correspond to actual print layers only when seat axis aligns wit
 - For blind openings, the final opening must extend deeper than the inner-ring relief if a separate shaft pocket is to exist. Explain inconsistent settings.
 
 ## Preview and validation
+
+Version 0.5.2 replays detached validated preview geometry for unchanged existing-seat callbacks on one shared body, including group expansion. Actual geometry edits invalidate it and execute always rebuilds. Guard preview/model building against recursive events. The owner-reported multi-seat preview crash still requires native verification.
 
 Show all proposed seats and their approximate dimensions before commit. Invalid positions (outside body, unintended breakout, collision/overlap) are red and accompanied by a textual reason. The user manually changes or removes positions; do not relocate automatically. Invalid positions block batch creation.
 

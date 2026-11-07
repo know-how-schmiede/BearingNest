@@ -52,7 +52,7 @@ def _resolve_all(design, requests):
     return resolved
 
 
-def editable_entities(design, records):
+def editable_entities(design, records, *, require_tail=True):
     """Allow an exact whole-batch group, rejecting downstream or foreign contents."""
     if not records or len({record['seat_id'] for record in records}) != len(records):
         raise ValueError('Invalid or duplicate seat records.')
@@ -96,11 +96,11 @@ def editable_entities(design, records):
     else:
         indices = sorted(node.index for node in nodes)
         complete = (bool(indices) and indices[0] >= 0
-                    and indices == list(range(indices[0], timeline.count))
+                    and indices == list(range(indices[0], indices[-1] + 1))
                     and all(node.parentGroup is None for node in nodes))
-        at_end = complete
+        at_end = complete and indices[-1] == timeline.count - 1
         entities = sorted(entities, key=lambda entity: entity.timelineObject.index, reverse=True)
-    if timeline.markerPosition != timeline.count or not complete or not at_end:
+    if timeline.markerPosition != timeline.count or not complete or (require_tail and not at_end):
         raise ValueError('Only the last complete BearingNest batch without later features can be edited.')
     references = _resolve_all(design, [(record['references'].get(role, ''),
         f'seat {number} [{record["seat_id"][:8]}] / {role}')
@@ -111,7 +111,12 @@ def editable_entities(design, records):
 
 
 def update(design, records, values, *, persist, auto_flags=None, bearing=None, profile=None,
-           feedback=None, wall_threshold_mm=0):
+           feedback=None, wall_threshold_mm=0, batch_choices=None):
+    if batch_choices is not None:
+        from . import seat_chain
+        return seat_chain.update(design, records, values, persist=persist,
+            batch_choices=batch_choices, auto_flags=auto_flags, bearing=bearing,
+            profile=profile, feedback=feedback, wall_threshold_mm=wall_threshold_mm)
     values.validate()
     entities = editable_entities(design, records)
     suppressed = []

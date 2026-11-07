@@ -41,6 +41,11 @@ class TimelineTests(unittest.TestCase):
             self.module.group(self.design, ['cut'], 'Name')
         self.add.assert_not_called()
 
+    def test_complete_batch_can_be_grouped_before_later_batches(self):
+        self.design.timeline.count = 9
+        self.module.group(self.design, ['cut'], 'Earlier batch')
+        self.add.assert_called_once_with(3, 4)
+
     def test_failed_group_creation_aborts_execute(self):
         self.add.return_value = None
         with self.assertRaisesRegex(RuntimeError, 'could not create'):

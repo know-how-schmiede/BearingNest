@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.2 - 2026-11-07
+
+- Record owner feedback: earlier-batch editing works, but Fusion crashed while changing values/previewing a multi-seat group and the dialog became slow. The native crash cause is not established.
+- Extend detached final-body preview caching to existing-seat edits when all discovered batches share one uniquely resolved body. Unchanged previews, including group toggles and duplicate native callbacks, replay graphics instead of suppressing and rebuilding the seat sequence again. Changed values, preview toggles and reactivation still invalidate the cache; execute always rebuilds.
+- Guard the full preview/model-build interval against recursive preview callbacks, model entry and generated inputChanged processing. Restore guards after failures. Multi-body/unsupported cache cases retain normal rebuilding.
+
+Validation: 204 automated tests pass and version synchronization passes. Cache/reentrancy tests use substitutes. Native multi-seat performance and crash resolution remain unconfirmed; retest value changes, group toggles, Preview off/on, cancel and apply/undo on a disposable copy.
+
+## 0.5.1 - 2026-11-07
+
+- Enable earlier-batch editing when the remaining timeline is a contiguous sequence of complete BearingNest batches. Prove ownership before changes; reject unrelated operations, broken/dependent references and already suppressed features.
+- Suppress originals from last to first, then rebuild in chronological order. Change only selected-batch values; successors retain saved parameters, metadata, Auto flags, seat/batch IDs and chooser group names.
+- Keep originals until all replacements succeed. Failed previews clean up replacements and restore suppression/profile display. Execute deletes originals, recomputes and checks replacement health; any failure aborts the entire transaction. Earlier-batch previews rebuild all affected groups.
+- Update bilingual help and restrictions. Root-component placement remains required.
+
+Validation: 198 automated tests and version synchronization pass. API-substitute tests do not establish native first/middle/last-batch editing, cancel, save/reopen or undo/redo acceptance; those trials remain pending.
+
 ## 0.5.0 - 2026-11-07
 
 - Begin the robust-editing milestone with seat schema 2 and an explicit, detached migration from schema 1. Preserve seat/batch identities, historical dimensions, metadata and unknown fields; default absent legacy chamfers to zero and missing Auto flags to Manual. Legacy seats without a batch ID remain separate seats. Loading does not rewrite Fusion attributes; a successful apply writes the current format.

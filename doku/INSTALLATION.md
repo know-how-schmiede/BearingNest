@@ -108,7 +108,7 @@ The owner reported no observed errors in a general 0.1.8 trial on 2026-11-03, th
 9. Add an unrelated feature after the batch: editing must refuse before model changes. Exact whole-batch timeline groups must remain editable, expanded or collapsed; foreign group contents and lost references must produce a restriction/repair message. Legacy multi-seat records without batch IDs may be refused. Schema-1 records migrate in memory to schema 2, preserving IDs/values and defaulting absent chamfers to zero and missing Auto flags to Manual. Verify opening/cancelling does not rewrite attributes; only successful Apply saves the new format.
 10. Record OS, Fusion build, values and results. Repeat on macOS before claiming platform acceptance.
 
-Editing rebuilds only the last complete batch without downstream features or timeline groups. Placement changes, native timeline double-click editing and downstream-reference repair are outside this proof. See [persistence and editing](PERSISTENCE_PROTOTYPE.md).
+Since 0.5.1, also run the [earlier-batch trial](PERSISTENCE_PROTOTYPE.md#051-earlier-batch-editing): check unchanged successor values/IDs and rollback of the entire sequence. Arbitrary later modeling features still block editing. Placement changes, native timeline double-click editing and downstream-reference repair remain outside this proof.
 
 ## Local checks
 

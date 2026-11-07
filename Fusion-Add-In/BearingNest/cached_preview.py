@@ -1,4 +1,4 @@
-"""Replay a validated new-seat preview as owned transient BRep graphics."""
+"""Replay a validated one-body seat preview as owned transient BRep graphics."""
 import adsk.fusion
 
 

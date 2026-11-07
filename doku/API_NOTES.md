@@ -1,5 +1,9 @@
 # API notes and validation
 
+## Earlier-batch sequence replacement (0.5.1)
+
+The adapter verifies ownership of a complete BearingNest timeline suffix, suppresses its cuts in reverse order and rebuilds chronologically without moving the timeline marker. Originals are deleted only after all replacements succeed. It then calls `Design.computeAll` and checks each replacement's validity and health. A successful recompute flag alone does not prove feature health; Autodesk documents this for [computeAll](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_WorkingModel_computeAll.htm). Sketch health is available through [Sketch.healthState](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Sketch_healthState.htm). Arbitrary external downstream operations remain unsupported. Tests use substitutes; native cancellation, deletion dependency behavior and undo/redo require the documented trial.
+
 Official Autodesk documentation and the installed Fusion Python API definitions were checked on 2026-11-03.
 
 ## Implemented prototype

@@ -2,11 +2,15 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.5.0** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.5.2** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+Version 0.5.2 reduces repeated edit-preview work by replaying a validated final-body copy for unchanged previews on one shared body. It also guards against recursive input/preview callbacks during geometry updates. This follows an owner-reported multi-seat crash while changing values/in preview; the native crash cause and resolution are not yet verified. Value changes still require a full affected-sequence rebuild.
+
+Version 0.5.1 enables earlier-batch editing when all following operations belong to complete BearingNest batches. Rebuild the affected sequence together, retaining successor values, IDs and group names. Unrelated operations and broken/dependent placement references block the update. See the [earlier-batch behavior and pending trial](doku/PERSISTENCE_PROTOTYPE.md#051-earlier-batch-editing).
 
 Version 0.5.0 starts the **robust-editing** milestone: older seat snapshots migrate in memory to schema 2, reference errors identify affected seats/features, and edits verify the saved target body. Existing values and identities are retained; loading alone does not rewrite model data. See [migration behavior and remaining acceptance](doku/PERSISTENCE_PROTOTYPE.md#050-robust-editing-foundation). Component transforms and explicit reference repair remain open.
 
@@ -56,7 +60,7 @@ On 2026-11-04 the owner confirmed the library and editing existing seats, includ
 - Optional manual inner-ring relief starting at the seat floor, with its own diameter and depth.
 - Optional 45-degree lead-in chamfer with equal axial/radial legs; 0 mm disables it. A conservative enclosing-cylinder preflight may reject close placements.
 - A versioned snapshot per seat with direct-cut, clearance and chamfer references, stable seat identity and creation-batch identity. Validation tool extrusions are removed before cutting.
-- A Create or edit seats list reloads saved batches. Committed batches have a collapsed timeline group named like their Seat mode entry. The last complete batch can be rebuilt with shared settings, including within its own expanded or collapsed group; downstream features, unrelated group contents and missing/ambiguous references block editing.
+- A Create or edit seats list reloads saved batches. Committed batches have a collapsed timeline group named like their Seat mode entry. Earlier batches can rebuild together with a contiguous sequence of later BearingNest batches, including expanded/collapsed groups. Unrelated operations, foreign group contents and missing/ambiguous or dependent placement references block editing.
 - Searchable verified seed sizes 623/624/625/608, custom bearing records with sources and optional purchasing URLs, and manual dimension overrides.
 - Named print profiles with per-field Auto/Manual settings, reset to suggestions, versioned local JSON storage and validated import/export. Existing seats keep independent bearing/profile snapshots.
 - Contour sketches hidden after cutting, with profiles kept enabled for feature calculation; successful creation also hides profile fills on selected placement sketches while preserving points, curves and sketch visibility.

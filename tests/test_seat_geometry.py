@@ -55,6 +55,22 @@ class ComputedProfiles:
 
 
 class GeometryAdapterTests(unittest.TestCase):
+    def test_rebuild_verifies_health_even_if_compute_succeeds(self):
+        design = NS(computeAll=Mock(return_value=True))
+        healthy = self.geometry.adsk.fusion.FeatureHealthStates.HealthyFeatureHealthState
+        entity = NS(isValid=True, healthState=healthy)
+        self.geometry.verify_rebuild(design, [entity])
+        entity.healthState = 'error'
+        with self.assertRaisesRegex(RuntimeError, 'unhealthy'):
+            self.geometry.verify_rebuild(design, [entity])
+        entity.isValid = False
+        with self.assertRaisesRegex(RuntimeError, 'lost'):
+            self.geometry.verify_rebuild(design, [entity])
+
+    def test_rebuild_rejects_failed_compute(self):
+        with self.assertRaisesRegex(RuntimeError, 'recompute'):
+            self.geometry.verify_rebuild(NS(computeAll=lambda: False), [])
+
     def setUp(self):
         package = ModuleType('geometry_test')
         package.__path__ = [str(ROOT)]
@@ -194,6 +210,23 @@ class GeometryAdapterTests(unittest.TestCase):
         self.assertEqual(snapshot['bearing']['source'], 'drawing')
         self.assertEqual(snapshot['auto_flags'], dict(old['auto_flags'], inner_diameter_auto=False))
         self.assertEqual(snapshot['features']['seat_cut'], 'cut')
+
+    def test_unchanged_successor_retains_full_bearing_metadata_with_shaft_off(self):
+        old = self.geometry.seat_snapshot.create(parameters=self.parameters.snapshot_values(),
+            bearing={'D_mm': 22, 'B_mm': 7, 'd_mm': 8, 'source': 'catalog',
+                     'inner_ring_outside_mm': None}, profile={'name': 'Historical'},
+            auto_flags={'relief_mm_auto': True}, references={'face': 'old'},
+            features={'seat_cut': 'old'})
+        generated = []
+        with patch.object(self.geometry, '_fully_contained'), \
+                patch.object(self.geometry.seat_storage, 'save') as save:
+            self.geometry.create_seats(self.design, self.face, [self.position], self.parameters,
+                persist=True, previous_snapshots=[old], preserve_metadata=True,
+                generated_entities=generated)
+        snapshot = save.call_args.args[1]
+        for key in ('bearing', 'profile', 'auto_flags', 'seat_id', 'batch_id'):
+            self.assertEqual(snapshot[key], old[key])
+        self.assertTrue(generated)
 
     def test_commit_saves_manual_bearing_and_effective_values_on_cut_feature(self):
         with patch.object(self.geometry, '_fully_contained'), \

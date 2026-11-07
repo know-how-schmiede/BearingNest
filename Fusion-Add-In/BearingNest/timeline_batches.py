@@ -17,7 +17,7 @@ def group(design, cuts, name):
             nodes.append(matches[0].timelineObject)
     indices = sorted(node.index for node in nodes)
     if (not indices or indices[0] < 0 or len(set(indices)) != len(indices)
-            or indices != list(range(indices[0], design.timeline.count))
+            or indices != list(range(indices[0], indices[-1] + 1))
             or any(node.parentGroup is not None for node in nodes)):
         raise RuntimeError('Cannot group an incomplete or interleaved seat batch.')
     result = design.timeline.timelineGroups.add(indices[0], indices[-1])

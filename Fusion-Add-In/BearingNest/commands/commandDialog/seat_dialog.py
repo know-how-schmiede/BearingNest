@@ -23,6 +23,9 @@ class SeatDialog:
         self._graphics = None
         self._cached_preview = None
         self._layout_preview = False
+        self._preview_running = False
+        self._model_busy = False
+        self._cached_body_token = None
         self._refreshing = False
         self._inner_diameter_auto = True
         self._last_auto_inner_value = None
@@ -411,6 +414,19 @@ class SeatDialog:
 
     @timed_event
     def preview(self, args):
+        args.isValidResult = False
+        if self._preview_running or self._model_busy:
+            return
+        self._preview_running = True
+        was_refreshing = self._refreshing
+        self._refreshing = True
+        try:
+            self._preview(args)
+        finally:
+            self._refreshing = was_refreshing
+            self._preview_running = False
+
+    def _preview(self, args):
         # Always rebuild in execute, so previews never commit without the seat snapshot.
         args.isValidResult = False
         self.geometry_error = None
@@ -429,10 +445,11 @@ class SeatDialog:
                 return
             request = self._request(check_placement=False)
             reused = False
-            if self._layout_preview and self._cached_preview is not None and not self._editing_records:
+            if self._cached_preview is not None:
                 try:
                     with self.timing.measure('preview_replay'):
-                        self._cached_preview.show(request[0], request[1].body)
+                        source = request[1].body if not self._editing_records else self._cached_source(request[0])
+                        self._cached_preview.show(request[0], source)
                         self.feedback = self._cached_preview.feedback
                     reused = True
                 except Exception:
@@ -471,6 +488,18 @@ class SeatDialog:
             self._set_status(escape(str(error)))
 
     def _apply(self, request, *, persist):
+        if self._model_busy:
+            raise RuntimeError(TEXT['model_busy'])
+        self._model_busy = True
+        was_refreshing = self._refreshing
+        self._refreshing = True
+        try:
+            return self._apply_model(request, persist=persist)
+        finally:
+            self._refreshing = was_refreshing
+            self._model_busy = False
+
+    def _apply_model(self, request, *, persist):
         from ... import seat_geometry
         options = {'auto_flags': {'inner_diameter_auto': self._inner_diameter_auto}} if persist else {}
         options['feedback'] = self.feedback
@@ -484,7 +513,8 @@ class SeatDialog:
             options['profile'] = self.catalog.profile
         if self._editing_records:
             from ... import seat_edit
-            cuts = seat_edit.update(request[0], self._editing_records, request[-1], persist=persist, **options)
+            cuts = seat_edit.update(request[0], self._editing_records, request[-1], persist=persist,
+                                    batch_choices=self._batches, **options)
         else:
             cuts = seat_geometry.create_seats(*request, persist=persist, **options)
         if persist:
@@ -505,16 +535,33 @@ class SeatDialog:
 
     def _capture_preview(self, cuts):
         self._cached_preview = None
-        if self._editing_records:
-            return
+        self._cached_body_token = None
         try:
             from ...cached_preview import CachedPreview
             # Feature bodies reflect the final result at the current timeline end,
             # including later chamfer/shaft/relief cuts on the same root body.
-            self._cached_preview = CachedPreview(cuts[-1].bodies.item(0), self.feedback)
+            body = cuts[-1].bodies.item(0)
+            if self._editing_records:
+                # The returned cut body contains the final sequence result. A
+                # one-body replay is safe only if no other affected body changed.
+                design = self.app.activeProduct
+                batches = list(self._batches.values()) or [self._editing_records]
+                for records in batches:
+                    for record in records:
+                        matches = design.findEntityByToken(record['references']['body'])
+                        if len(matches) != 1 or matches[0] != body:
+                            return
+                self._cached_body_token = self._editing_records[0]['references']['body']
+            self._cached_preview = CachedPreview(body, self.feedback)
         except Exception:
             # Caching is optional; an unsupported host keeps its validated preview.
             pass
+
+    def _cached_source(self, design):
+        matches = design.findEntityByToken(self._cached_body_token)
+        if len(matches) != 1 or not matches[0].isValid:
+            raise ValueError(TEXT['selection_restore_failed'])
+        return matches[0]
 
     def activated(self, args):
         # An intervening command/document activation must not reuse stale geometry.

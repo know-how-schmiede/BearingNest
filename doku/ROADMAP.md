@@ -23,6 +23,10 @@ Before continuing with 0.5.0, review German layout in Fusion, including Settings
 
 ## Immediate next steps
 
+The owner reports 0.5.1 earlier-batch editing works, but a multi-seat group crashed Fusion during value changes/preview and the dialog was slow. Version 0.5.2 adds same-body edit-preview caching and callback guards. Native crash resolution is not established. Retest a disposable multi-seat design: value changes, first/middle-group selection, repeated group expansion, Preview off/on, cancel and apply/undo. Record the timing report; unchanged callbacks should use preview_replay while actual value edits still use preview_rebuild.
+
+Version 0.5.1 adds constrained earlier-batch editing: rebuild a contiguous suffix of complete BearingNest batches while preserving successor values/identities. The owner reported the previous last-batch restriction in 0.5.0. Run the [first/middle/last-batch trial](PERSISTENCE_PROTOTYPE.md#051-earlier-batch-editing), including failed successor rebuild, cancel, save/reopen and undo/redo. Native acceptance remains pending.
+
 The owner authorized starting the 0.5.0 robust-editing milestone on 2026-11-07. The first increment implements schema-1 to schema-2 migration, aggregated reference diagnostics and saved-body checks. Loading migrates in memory only; successful apply persists schema 2. This does not close the milestone.
 
 1. Trial a saved 0.4.9 batch: reopen, preview an edit, cancel, then apply and save/reopen. Confirm IDs, dimensions, Auto/Manual state and timeline grouping remain intact.
