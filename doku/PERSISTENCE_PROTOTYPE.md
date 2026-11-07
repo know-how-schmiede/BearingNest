@@ -1,5 +1,17 @@
 # Seat persistence prototype
 
+## 0.5.0: robust-editing foundation
+
+New snapshots use seat schema 2. The reader explicitly migrates schema 1 into a detached copy: it preserves existing seat/batch IDs and all recorded dimensions and metadata, adds a missing legacy chamfer as 0 mm and missing Auto flags as Manual. A record without a batch ID uses its own seat ID; it is never automatically merged with neighboring seats. Unknown fields and unknown bearing dimensions survive unchanged. Future schemas and malformed records are rejected. Settings JSON keeps its independent schema 1.
+
+Opening or previewing a design does not rewrite legacy attributes. Only successful Apply saves revised schema-2 snapshots. Generated feature tokens are checked together before suppression; diagnostics identify seat and role, and missing/split/invalid entities block rebuilding. Batches with mixed identities or inconsistent effective parameters are rejected. After suppressing the originals, placement references are resolved again and the face's body must match the saved body. Failure restores original suppression state.
+
+Use a copy of a saved 0.4.9 design for the migration trial. Earlier add-in versions reject schema-2 records after a migrated edit is applied; no downgrade conversion is provided.
+
+Committed batches can occupy an exact whole-batch timeline group, expanded or collapsed, since 0.4.9. Later features or foreign group contents still block editing. The owner confirmed grouping works; detailed migration/edit/cancel/save/reopen/undo verification remains pending. Explicit reference reassignment, component transforms and downstream-reference stability are not implemented in this first increment.
+
+## Historical implementation
+
 Version 0.3.0 adds [catalog/profile snapshots and local settings](CATALOG_AND_PROFILES.md). New seats copy effective bearing dimensions, original catalog dimensions, source metadata, named profile data and the three derived-field Auto flags. Reopening uses stored values without recalculating from the current library. Older records preserve their geometry with these flags defaulting to Manual. Seat schema remains version 1 because these are additions inside existing object sections; settings files have an independent schema version 1.
 
 Status: the snapshot codec and Fusion API adapter are connected to the creation command. Successful execute writes one snapshot to each direct cut extrusion; preview does not persist one. Version 0.2.0 added discovery, dialog reloading and constrained whole-batch editing. On 2026-11-04 the owner confirmed editing existing seats, including multiple seats together, in the 0.3.0 trial. Specific save/reopen, failure recovery, cancel and undo/redo cases still require recorded acceptance.
@@ -24,7 +36,7 @@ Open BearingNest and use **Create or edit seats** to choose a saved batch. The d
 
 New schema-1 records carry an optional batch_id. Seat IDs remain unchanged on update. Bearing/profile metadata survives, effective manual dimensions and feature references are revised, and the relief auto/manual flag is saved. Older records without chamfer_mm default to zero chamfer. Records without batch identities are treated as individual seats: an old multi-seat creation generally cannot satisfy the complete-tail guard and may need recreation. Legacy retained-tool/combine seats are rejected.
 
-The adapter resolves every generated feature uniquely and requires its full set to occupy the end of the ungrouped timeline with the marker at the end. Later features, groups, missing or ambiguous entities and incomplete ownership block editing before model changes. References are resolved again after suppressing original cuts, when the original placement face is restored.
+The adapter resolves every generated feature uniquely and requires its full set to occupy the end of the timeline with the marker at the end. Since 0.4.9, an exact whole-batch group is supported. Later features, foreign group contents, missing or ambiguous entities and incomplete ownership block editing before model changes. References are resolved again after suppressing original cuts, when the original placement face is restored.
 
 Original cuts are suppressed in reverse timeline order. The existing batch constructor then validates all new tools and positions and creates replacement geometry. A failed preview cleans up the new geometry and restores the original suppression state. A successful preview is temporary and Fusion rolls it back before another preview/execute or on cancel. Execute saves revised snapshots and removes original features only after replacement creation succeeds. Any execute failure sets executeFailed to abort the whole command transaction. This is an explicit rebuild strategy, not native timeline double-click editing; downstream feature references are deliberately unsupported until the robust-editing milestone.
 
@@ -36,7 +48,7 @@ Original cuts are suppressed in reverse timeline order. The existing batch const
 4. Apply an edit and confirm stable seat IDs, revised geometry, no duplicate records or cuts, and no suppressed originals left behind.
 5. Turn optional chamfer/shaft/relief operations on and off across successive edits. Save/reopen again.
 6. Try an invalid update and missing/ambiguous references; require repair or a clear error without partial results.
-7. Check one-command undo/redo and reject editing with later features or grouped timeline entries.
+7. Check one-command undo/redo, accept exact whole-batch groups expanded/collapsed, and reject editing with later features or foreign group contents.
 
 These are acceptance instructions, not completed live test results. Component transforms, lost-reference repair and editing with downstream features remain later work.
 

@@ -53,13 +53,54 @@ class SnapshotTests(unittest.TestCase):
 
     def test_bad_snapshots_do_not_overwrite_saved_data(self):
         self.storage.save(self.owner, self.snapshot)
-        for changes in ({'schema_version': 2}, {'schema_version': True},
+        for changes in ({'schema_version': self.codec.SCHEMA_VERSION + 1}, {'schema_version': True},
                         {'parameters': {'value': float('nan')}}, {'references': {'face': ''}}):
             with self.assertRaises(ValueError):
                 self.storage.save(self.owner, dict(self.snapshot, **changes))
         self.assertEqual(self.storage.load(self.owner), self.snapshot)
         with self.assertRaises(ValueError):
             self.storage.save(self.owner, dict(self.snapshot, seat_id='another-seat'))
+
+    def legacy(self):
+        value = self.codec.loads(self.codec.dumps(self.snapshot))
+        value['schema_version'] = 1
+        del value['batch_id']
+        value['auto_flags'] = {'relief_mm_auto': True}
+        return value
+
+    def test_legacy_migration_is_detached_idempotent_and_preserves_values(self):
+        legacy = self.legacy()
+        legacy['extension'] = {'keep': ['historical']}
+        migrated = self.codec.migrate(legacy)
+        self.assertEqual(migrated['schema_version'], 2)
+        self.assertEqual(migrated['batch_id'], legacy['seat_id'])
+        self.assertEqual(migrated['parameters']['chamfer_mm'], 0)
+        self.assertTrue(migrated['auto_flags']['relief_mm_auto'])
+        self.assertFalse(migrated['auto_flags']['inner_diameter_auto'])
+        self.assertIsNone(migrated['bearing']['inner_ring_outside_mm'])
+        self.assertEqual(migrated['extension'], legacy['extension'])
+        self.assertEqual(migrated, self.codec.migrate(migrated))
+        migrated['bearing']['D_mm'] = 100
+        self.assertEqual(legacy['bearing']['D_mm'], 22)
+        self.assertNotIn('batch_id', legacy)
+
+    def test_loading_legacy_attribute_does_not_rewrite_model_data(self):
+        import json
+        legacy = self.legacy()
+        legacy['batch_id'] = 'original-batch'
+        legacy['parameters']['chamfer_mm'] = 0.4
+        raw = json.dumps(legacy)
+        self.attributes[self.storage.GROUP, self.storage.NAME] = SimpleNamespace(value=raw)
+        loaded = self.storage.load(self.owner)
+        self.assertEqual(loaded['batch_id'], 'original-batch')
+        self.assertEqual(loaded['parameters']['chamfer_mm'], 0.4)
+        self.assertEqual(self.attributes[self.storage.GROUP, self.storage.NAME].value, raw)
+
+    def test_migration_rejects_future_boolean_or_corrupt_versions(self):
+        for changes in ({'schema_version': 3}, {'schema_version': True},
+                        {'references': {'face': ''}}, {'auto_flags': {'relief_mm_auto': 'yes'}}):
+            with self.assertRaises(ValueError):
+                self.codec.migrate(dict(self.legacy(), **changes))
 
     def test_missing_and_split_entities_are_reported_for_repair(self):
         design = SimpleNamespace(findEntityByToken=lambda token: [] if token == 'face-token'

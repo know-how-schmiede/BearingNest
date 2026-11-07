@@ -28,7 +28,8 @@ class EditTests(unittest.TestCase):
         self.record['batch_id'] = 'batch'
         self.sketch = self.entity('Sketch', 3)
         self.cut = self.entity('ExtrudeFeature', 4)
-        self.face, self.position, self.body = object(), object(), object()
+        self.body = object()
+        self.face, self.position = NS(body=self.body), object()
         self.mapping = {'sketch': [self.sketch], 'cut': [self.cut], 'face': [self.face],
             'position': [self.position], 'body': [self.body]}
         self.design = NS(timeline=NS(markerPosition=5, count=5),
@@ -141,6 +142,39 @@ class EditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'face'):
             self.edit.update(self.design, [self.record], self.values, persist=False)
         self.assertFalse(self.cut.timelineObject.isSuppressed)
+
+    def test_all_missing_features_are_reported_before_suppression(self):
+        self.mapping['sketch'] = []
+        self.mapping['cut'] = []
+        with self.assertRaises(ValueError) as raised:
+            self.edit.update(self.design, [self.record], self.values, persist=True)
+        self.assertIn('contour', str(raised.exception))
+        self.assertIn('seat_cut', str(raised.exception))
+        self.assertIn(self.record['seat_id'][:8], str(raised.exception))
+        self.assertFalse(self.cut.timelineObject.isSuppressed)
+        self.geometry.create_seats.assert_not_called()
+
+    def test_invalid_feature_is_not_accepted_as_unique_match(self):
+        self.cut.isValid = False
+        with self.assertRaisesRegex(ValueError, 'seat_cut'):
+            self.edit.update(self.design, [self.record], self.values, persist=True)
+        self.geometry.create_seats.assert_not_called()
+
+    def test_changed_body_is_rejected_and_original_suppression_restored(self):
+        self.face.body = object()
+        with self.assertRaisesRegex(ValueError, 'saved body'):
+            self.edit.update(self.design, [self.record], self.values, persist=True)
+        self.assertFalse(self.cut.timelineObject.isSuppressed)
+        self.geometry.create_seats.assert_not_called()
+
+    def test_different_batches_and_inconsistent_values_cannot_be_merged(self):
+        other = dict(self.record, seat_id='other', batch_id='different')
+        with self.assertRaisesRegex(ValueError, 'different seat batches'):
+            self.edit.editable_entities(self.design, [self.record, other])
+        other['batch_id'] = self.record['batch_id']
+        other['parameters'] = dict(self.record['parameters'], width_mm=8)
+        with self.assertRaisesRegex(ValueError, 'inconsistent parameters'):
+            self.edit.editable_entities(self.design, [self.record, other])
 
     def test_delete_failure_is_propagated_for_execute_transaction_abort(self):
         self.cut.deleteMe.return_value = False

@@ -192,7 +192,7 @@ class GeometryAdapterTests(unittest.TestCase):
         self.assertEqual(snapshot['batch_id'], 'stable batch')
         self.assertEqual(snapshot['profile'], old['profile'])
         self.assertEqual(snapshot['bearing']['source'], 'drawing')
-        self.assertEqual(snapshot['auto_flags'], {'other': True, 'inner_diameter_auto': False})
+        self.assertEqual(snapshot['auto_flags'], dict(old['auto_flags'], inner_diameter_auto=False))
         self.assertEqual(snapshot['features']['seat_cut'], 'cut')
 
     def test_commit_saves_manual_bearing_and_effective_values_on_cut_feature(self):

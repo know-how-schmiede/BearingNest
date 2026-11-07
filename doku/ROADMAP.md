@@ -23,6 +23,15 @@ Before continuing with 0.5.0, review German layout in Fusion, including Settings
 
 ## Immediate next steps
 
+The owner authorized starting the 0.5.0 robust-editing milestone on 2026-11-07. The first increment implements schema-1 to schema-2 migration, aggregated reference diagnostics and saved-body checks. Loading migrates in memory only; successful apply persists schema 2. This does not close the milestone.
+
+1. Trial a saved 0.4.9 batch: reopen, preview an edit, cancel, then apply and save/reopen. Confirm IDs, dimensions, Auto/Manual state and timeline grouping remain intact.
+2. Verify missing/split/invalid references, mismatched body ownership and failed updates without partial replacement or lost originals.
+3. Design explicit reference repair and component/occurrence coordinate handling, then cover transformed instances and ambiguity. Root-component-only placement remains the supported scope.
+4. Record repeated edit, cancel, single-command undo/redo and platform acceptance before closing 0.5.0. Editing with downstream features remains unsupported.
+
+## Earlier implementation notes and outstanding trial cases
+
 The owner confirmed the latest 0.4.7 preview/selection flow works. Version 0.4.8 changes only shared form column widths to 2:1 (label/control); check label readability and usable value-field widths in Fusion, including German profile factors and catalog fields.
 
 Preview-off face loss was reproduced natively in 0.4.7 (point retained, "3: invalid argument selection"). Source-selection tokens are now captured before preview cuts and retained across toggles, with explicit selection changes invalidating their baselines. Verify repeated Preview off/on after fresh feature previews and graphics replays, retaining face/all points and allowing Apply Seats while Preview is off. The new native test was cancelled without permanent geometry; corrected-build acceptance is pending.

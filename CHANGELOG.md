@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 - 2026-11-07
+
+- Begin the robust-editing milestone with seat schema 2 and an explicit, detached migration from schema 1. Preserve seat/batch identities, historical dimensions, metadata and unknown fields; default absent legacy chamfers to zero and missing Auto flags to Manual. Legacy seats without a batch ID remain separate seats. Loading does not rewrite Fusion attributes; a successful apply writes the current format.
+- Report multiple unresolved generated-feature references together with seat identity and feature role before suppressing original geometry. Reject invalid entities, mixed batch identities and inconsistent shared parameters.
+- Resolve placement references again after suppression and verify the restored face still belongs to the saved body. Failed updates restore original suppression state.
+
+This is the first robust-editing increment. Component transforms, explicit reference repair and downstream-reference stability remain open; 0.5.0 is not a completed acceptance milestone.
+
+Validation: 182 automated tests pass and version synchronization passes. Native migration/edit/cancel/save/reopen acceptance remains pending. After applying a migrated edit, earlier add-in versions cannot read its schema-2 snapshot; keep a pre-upgrade design copy for comparison.
+
 ## 0.4.9 - 2026-11-07
 
 - Collect each committed seat batch's generated sketches and cuts in one collapsed Fusion timeline group. Use the same localized batch label as the corresponding Seat mode entry.

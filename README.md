@@ -2,11 +2,13 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.9** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.5.0** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+Version 0.5.0 starts the **robust-editing** milestone: older seat snapshots migrate in memory to schema 2, reference errors identify affected seats/features, and edits verify the saved target body. Existing values and identities are retained; loading alone does not rewrite model data. See [migration behavior and remaining acceptance](doku/PERSISTENCE_PROTOTYPE.md#050-robust-editing-foundation). Component transforms and explicit reference repair remain open.
 
 Version 0.4.9 collects each committed seat batch in a collapsed timeline group named like its Seat mode entry. The owner confirmed that grouping works on 2026-11-07.
 

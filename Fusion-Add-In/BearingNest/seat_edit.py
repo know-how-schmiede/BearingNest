@@ -32,17 +32,39 @@ def parameters(record):
 def _unique(design, token, role):
     matches = design.findEntityByToken(token)
     if len(matches) != 1:
-        raise ValueError(f'Repair required: {role} is missing or ambiguous.')
+        reason = 'missing' if not matches else 'ambiguous'
+        raise ValueError(f'{reason} reference')
+    if not getattr(matches[0], 'isValid', True):
+        raise ValueError('invalid entity')
     return matches[0]
+
+
+def _resolve_all(design, requests):
+    """Report all broken references together; never pick a split entity."""
+    resolved, problems = [], []
+    for token, role in requests:
+        try:
+            resolved.append(_unique(design, token, role))
+        except Exception as error:
+            problems.append(f'{role}: {error}')
+    if problems:
+        raise ValueError('Repair required:\n' + '\n'.join(problems))
+    return resolved
 
 
 def editable_entities(design, records):
     """Allow an exact whole-batch group, rejecting downstream or foreign contents."""
     if not records or len({record['seat_id'] for record in records}) != len(records):
         raise ValueError('Invalid or duplicate seat records.')
-    entities = []
-    for record in records:
+    requests = []
+    expected_parameters = parameters(records[0])
+    identities = {record.get('batch_id', record['seat_id']) for record in records}
+    if len(identities) != 1:
+        raise ValueError('Repair required: records belong to different seat batches.')
+    for number, record in enumerate(records, 1):
         seat_snapshot.validate(record)
+        if parameters(record) != expected_parameters:
+            raise ValueError('Repair required: seats in this batch have inconsistent parameters.')
         if not {'contour', 'seat_cut'} <= record['features'].keys():
             raise ValueError('Repair required: incomplete generated feature references.')
         if 'tool' in record['features']:
@@ -50,10 +72,11 @@ def editable_entities(design, records):
         if record['features'].keys() - FEATURE_ROLES:
             raise ValueError('Repair required: unknown generated feature roles.')
         for role, token in record['features'].items():
-            entity = _unique(design, token, role)
-            if any(entity == previous for previous in entities):
-                raise ValueError('Repair required: generated features are shared between records.')
-            entities.append(entity)
+            requests.append((token, f'seat {number} [{record["seat_id"][:8]}] / {role}'))
+    entities = _resolve_all(design, requests)
+    for index, entity in enumerate(entities):
+        if any(entity == previous for previous in entities[:index]):
+            raise ValueError('Repair required: generated features are shared between records.')
     timeline = design.timeline
     nodes = [entity.timelineObject for entity in entities]
     parent = nodes[0].parentGroup
@@ -79,11 +102,11 @@ def editable_entities(design, records):
         entities = sorted(entities, key=lambda entity: entity.timelineObject.index, reverse=True)
     if timeline.markerPosition != timeline.count or not complete or not at_end:
         raise ValueError('Only the last complete BearingNest batch without later features can be edited.')
-    for record in records:
-        for role in ('position', 'body'):
-            entity = _unique(design, record['references'][role], role)
-            if any(entity == generated for generated in entities):
-                raise ValueError('Repair required: placement depends on generated seat geometry.')
+    references = _resolve_all(design, [(record['references'].get(role, ''),
+        f'seat {number} [{record["seat_id"][:8]}] / {role}')
+        for number, record in enumerate(records, 1) for role in ('position', 'body')])
+    if any(entity == generated for entity in references for generated in entities):
+        raise ValueError('Repair required: placement depends on generated seat geometry.')
     return entities
 
 
@@ -104,10 +127,14 @@ def update(design, records, values, *, persist, auto_flags=None, bearing=None, p
                 raise ValueError('Repair required: a generated feature is already suppressed.')
             node.isSuppressed = True
             suppressed.append(node)
-        faces = [_unique(design, record['references']['face'], 'face') for record in records]
+        references = _resolve_all(design, [(record['references'].get(role, ''),
+            f'seat {number} [{record["seat_id"][:8]}] / {role}')
+            for number, record in enumerate(records, 1) for role in ('face', 'position', 'body')])
+        faces, positions, bodies = references[::3], references[1::3], references[2::3]
         if any(face != faces[0] for face in faces):
             raise ValueError('The batch no longer refers to one planar face.')
-        positions = [_unique(design, record['references']['position'], 'position') for record in records]
+        if any(face.body != body for face, body in zip(faces, bodies)):
+            raise ValueError('Repair required: the placement face no longer belongs to the saved body.')
         metadata = {}
         if bearing is not None:
             metadata['bearing'] = bearing

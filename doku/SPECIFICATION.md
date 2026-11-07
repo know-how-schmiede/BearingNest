@@ -83,6 +83,8 @@ Thin remaining walls produce a warning only; allow creation when the complete co
 
 ## Persistence and editing
 
+The first 0.5.0 increment uses seat schema 2 with explicit in-memory migration from schema 1. Preserve identities, historical geometry and metadata; absent legacy chamfers default to zero and missing Auto flags to Manual. Do not rewrite stored attributes until successful Apply. Report all broken generated-feature references with seat/role context before suppression; reject inconsistent batch values and mismatched saved-body ownership. Explicit reference repair and component transforms remain pending.
+
 Persist placement references, effective geometry parameters, auto/manual flags, selected profile snapshot, bearing snapshot, schema version and identifiers needed to locate generated geometry. Reopening must populate the dialog and support preview/apply/cancel. Detect lost references and report repair requirements. Edits must not duplicate seats or leave failed partial results. Native parameter dependencies and edit strategy are subject to the supported Fusion API prototype.
 
 ## Remaining decisions
