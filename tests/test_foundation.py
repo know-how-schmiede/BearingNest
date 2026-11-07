@@ -62,6 +62,11 @@ class Inputs:
         self.tabs.append(tab)
         return tab
 
+    def addGroupCommandInput(self, identity, label):
+        group = SimpleNamespace(id=identity, label=label, children=Inputs())
+        self.fields.append(group)
+        return group
+
     def addTextBoxCommandInput(self, identity, label, text, rows, readonly):
         field = SimpleNamespace(id=identity, text=text, readonly=readonly)
         self.fields.append(field)
@@ -87,8 +92,24 @@ class Inputs:
     def addDropDownCommandInput(self, identity, label, style):
         field = SimpleNamespace(id=identity, selectedItem=None)
         items = []
+        class ListItem:
+            def __init__(self, name, selected):
+                self.name = name
+                self.isSelected = selected
+
+            @property
+            def isSelected(self):
+                return field.selectedItem is self
+
+            @isSelected.setter
+            def isSelected(self, selected):
+                if selected:
+                    field.selectedItem = self
+                elif field.selectedItem is self:
+                    field.selectedItem = None
+
         def add(name, selected, icon):
-            item = SimpleNamespace(name=name, isSelected=selected)
+            item = ListItem(name, selected)
             items.append(item)
             field.listItems.count = len(items)
             if selected:
@@ -209,10 +230,10 @@ class FoundationTests(unittest.TestCase):
                       if callback.__name__ == 'execute')
         return command, inputs, dialog
 
-    def test_dialog_has_three_tabs_required_selections_and_handler_cleanup(self):
+    def test_dialog_has_four_tabs_required_selections_and_handler_cleanup(self):
         command, inputs, dialog = self.make_dialog()
         self.assertEqual([tab.label for tab in inputs.tabs],
-                         ['Bearing Seat', 'Settings', 'About'])
+                         ['Bearing Seat', 'Bearing Catalog', 'Settings', 'Info'])
         self.assertTrue(command.isOKButtonVisible)
         self.assertEqual(command.okButtonText, 'Apply Seats')
         self.assertEqual(dialog.fields['seat_position'].limits, (1, 0))
@@ -347,8 +368,8 @@ class FoundationTests(unittest.TestCase):
             self.assertEqual(dialog.fields[key].value, flags[key])
         self.assertFalse(dialog._inner_diameter_auto)
         self.assertEqual(dialog.fields['profile_name'].value, 'Stored printer')
-        self.assertEqual(dialog.fields['custom_manufacturer'].value, 'Example')
-        self.assertEqual(dialog.fields['custom_id'].value, 'custom-full')
+        self.assertEqual(dialog.fields['custom_manufacturer'].value, '')
+        self.assertIsNone(catalog.editor_bearing)
         # Delayed programmatic selector/value events must not recalculate a preset.
         self.change(dialog, 'catalog_bearing')
         self.change(dialog, 'print_profile')
@@ -359,12 +380,14 @@ class FoundationTests(unittest.TestCase):
     def test_compact_layout_and_named_parameter_catalog_round_trip(self):
         _, inputs, dialog = self.make_dialog()
         seat_ids = [field.id for field in inputs.tabs[0].children.fields]
-        settings_ids = [field.id for field in inputs.tabs[1].children.fields]
+        settings_ids = [field.id for field in inputs.tabs[2].children.fields]
         self.assertEqual(seat_ids[:3], ['seat_batch', 'catalog_search', 'catalog_bearing'])
         self.assertNotIn('foundation_status', seat_ids)
         self.assertNotIn('geometry_status', seat_ids)
         self.assertNotIn('profile_effective', seat_ids)
-        self.assertIn('print_profile', settings_ids)
+        self.assertIn('profiles_group', settings_ids)
+        profile_group = next(field for field in inputs.tabs[0].children.fields if field.id == 'seat_profile_group')
+        self.assertIn('print_profile', [field.id for field in profile_group.children.fields])
         self.assertNotIn('print_profile', seat_ids)
         self.assertLess(seat_ids.index('seat_status'), seat_ids.index('catalog_save_name'))
         self.assertEqual(seat_ids[seat_ids.index('catalog_save_name') + 1], 'catalog_save')
@@ -400,6 +423,138 @@ class FoundationTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 dialog.catalog._save_parameters()
         self.assertEqual(dialog.catalog.data['bearings'], [])
+
+    def select_editor_bearing(self, dialog, designation):
+        title = next(title for title, record in dialog.catalog.editor_choices.items()
+                     if record and record['designation'] == designation)
+        dialog.fields['catalog_editor'].selectedItem = SimpleNamespace(name=title)
+        self.change(dialog, 'catalog_editor')
+
+    def test_catalog_editor_updates_selected_entry_without_changing_active_seat(self):
+        _, _, dialog = self.make_dialog()
+        self.select_catalog_bearing(dialog, '608')
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        self.select_editor_bearing(dialog, '623')
+        self.assertEqual(dialog.fields['edit_outside_mm'].value, 1)
+        self.assertFalse(dialog.fields['bearing_delete'].isEnabled)
+        dialog.fields['custom_designation'].value = 'My 623'
+        dialog.fields['edit_outside_mm'].expression = '11 mm'
+        dialog.fields['edit_land_count'].listItems.item(2).isSelected = True
+        dialog.fields['edit_correction_mm'].expression = '-0.15 mm'
+        with patch.object(model, 'save'):
+            catalog._action('bearing_save')
+        record = catalog.data['bearings'][0]
+        self.assertEqual(record['D_mm'], 11)
+        self.assertEqual(record['seat_preset']['parameters']['land_count'], 7)
+        self.assertEqual(record['seat_preset']['parameters']['correction_mm'], -0.15)
+        self.assertEqual(catalog.bearing['designation'], '608')
+        self.assertEqual(dialog.fields['outside_mm'].value, 2.2)
+        self.assertTrue(dialog.fields['bearing_delete'].isEnabled)
+        self.select_editor_bearing(dialog, 'My 623')
+        dialog.fields['custom_manufacturer'].value = 'My manufacturer'
+        with patch.object(model, 'save'):
+            catalog._action('bearing_save')
+        self.assertEqual(len(catalog.data['bearings']), 1)
+        self.assertEqual(catalog.data['bearings'][0]['id'], record['id'])
+        self.assertEqual(catalog.data['bearings'][0]['manufacturer'], 'My manufacturer')
+        with patch.object(model, 'save'):
+            catalog._action('bearing_delete')
+        self.assertFalse(catalog.data['bearings'])
+        self.assertEqual(catalog.bearing['designation'], '608')
+        self.assertIsNone(catalog.editor_bearing)
+
+    def test_catalog_editor_preserves_data_on_invalid_values_or_failed_save(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        self.select_editor_bearing(dialog, '623')
+        original = catalog.editor_bearing.copy()
+        dialog.fields['edit_width_mm'].expression = '0 mm'
+        with patch.object(model, 'save') as save:
+            with self.assertRaises(ValueError):
+                catalog._action('bearing_save')
+        save.assert_not_called()
+        dialog.fields['edit_width_mm'].expression = '4 mm'
+        with patch.object(model, 'save', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                catalog._action('bearing_save')
+        self.assertFalse(catalog.data['bearings'])
+        self.assertEqual(catalog.editor_bearing, original)
+        with patch.object(model, 'save') as save:
+            with self.assertRaises(ValueError):
+                catalog._action('bearing_delete')
+        save.assert_not_called()
+
+    def test_settings_profile_inspection_does_not_change_active_seat(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        other = dict(model.DEFAULT_PROFILE, id='other', name='Other', nozzle_mm=0.6)
+        catalog.data['profiles'].append(other)
+        catalog._choices()
+        title = next(title for title, record in catalog.management_choices.items() if record['id'] == 'other')
+        dialog.fields['settings_profile'].selectedItem = SimpleNamespace(name=title)
+        self.change(dialog, 'settings_profile')
+        self.assertEqual(catalog.managed_profile, other)
+        self.assertEqual(dialog.fields['profile_nozzle_mm'].value, 0.06)
+        self.assertEqual(catalog.profile, model.DEFAULT_PROFILE)
+        self.assertEqual(dialog.fields['relief_mm'].value, 0.12)
+
+    def test_catalog_ring_dimension_replaces_automatic_placeholder_only(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        record = dict(model.seed_bearings()[-1], id='custom-ring', designation='Known ring',
+                      inner_ring_outside_mm=12)
+        catalog.data['bearings'].append(record)
+        catalog._choices()
+        self.select_catalog_bearing(dialog, 'Known ring')
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 1.2)
+        self.assertFalse(dialog._inner_diameter_auto)
+        dialog.fields['bore_mm'].expression = '9 mm'
+        self.change(dialog, 'bore_mm')
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 1.2)
+        dialog.fields['inner_diameter_mm'].expression = '13 mm'
+        self.change(dialog, 'inner_diameter_mm')
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 1.3)
+        self.assertNotIn('seat_preset', record)
+
+    def test_catalog_ring_suggestion_preserves_manual_presets_and_historical_seats(self):
+        _, _, dialog = self.make_dialog()
+        catalog = dialog.catalog
+        model = catalog._save.__globals__['model']
+        record = dict(model.seed_bearings()[-1], inner_ring_outside_mm=12)
+        automatic = catalog._preset(None)
+        automatic['auto_flags']['inner_diameter_auto'] = True
+        record['seat_preset'] = automatic
+        proposed = catalog._preset(record)
+        self.assertEqual(proposed['parameters']['inner_diameter_mm'], 12)
+        self.assertEqual(automatic['parameters']['inner_diameter_mm'], 8)
+        automatic['parameters']['inner_diameter_mm'] = 13
+        automatic['auto_flags']['inner_diameter_auto'] = False
+        self.assertEqual(catalog._preset(record)['parameters']['inner_diameter_mm'], 13)
+        # Historical seat reopening uses its snapshot, not catalog suggestions.
+        catalog.bearing = record
+        automatic['parameters']['inner_diameter_mm'] = 8
+        automatic['auto_flags']['inner_diameter_auto'] = True
+        catalog._restore_preset(automatic)
+        self.assertEqual(dialog.fields['inner_diameter_mm'].value, 0.8)
+        self.assertTrue(dialog._inner_diameter_auto)
+
+    def test_catalog_editor_bore_follow_and_manual_override_are_independent(self):
+        _, _, dialog = self.make_dialog()
+        self.select_editor_bearing(dialog, '608')
+        dialog.fields['edit_bore_mm'].expression = '9 mm'
+        self.change(dialog, 'edit_bore_mm')
+        self.assertEqual(dialog.fields['edit_inner_diameter_mm'].value, 0.9)
+        self.assertEqual(dialog.fields['bore_mm'].value, 0.8)
+        dialog.fields['edit_inner_diameter_mm'].expression = '12 mm'
+        self.change(dialog, 'edit_inner_diameter_mm')
+        dialog.fields['edit_bore_mm'].expression = '10 mm'
+        self.change(dialog, 'edit_bore_mm')
+        self.assertEqual(dialog.fields['edit_inner_diameter_mm'].value, 1.2)
+        self.assertFalse(dialog.catalog._editor_preset()['auto_flags']['inner_diameter_auto'])
 
     def test_invalid_settings_do_not_partially_replace_data_or_profile(self):
         _, _, dialog = self.make_dialog()
@@ -520,7 +675,7 @@ class FoundationTests(unittest.TestCase):
         catalog.bearing = record.copy()
         catalog.data['profiles'].append(dict(model.DEFAULT_PROFILE, id='other', name='Other', nozzle_mm=0.6))
         original_profile = catalog.profile.copy()
-        dialog.fields['custom_id'].value = 'custom-test'
+        catalog._load_editor(record)
         with patch.object(model, 'save'):
             catalog._action('bearing_delete')
             catalog._action('profile_delete')
@@ -765,7 +920,7 @@ class FoundationTests(unittest.TestCase):
 
     def test_optional_clearance_controls_follow_modes_outside_validation(self):
         command, inputs, dialog = self.make_dialog()
-        self.assertFalse(dialog.fields['bore_mm'].isEnabled)
+        self.assertTrue(dialog.fields['bore_mm'].isEnabled)
         self.assertFalse(dialog.fields['inner_diameter_mm'].isEnabled)
         dialog.fields['shaft_mode'].selectedItem.name = 'Blind'
         dialog._refresh_controls()

@@ -17,11 +17,11 @@ No inner-ring outside/shoulder dimension is inferred from these principal dimens
 
 ## Bearing Seat tab
 
-Search accepts designation, manufacturer, part number and dimensions. All space-separated terms must match. As of 0.4.3, explicitly selecting a catalog bearing replaces every stored seat parameter in the form: dimensions, fit/axial corrections, land count/angle/rotation, radial relief, radius, chamfer, shaft mode/allowance/depth and inner-ring relief switch/diameter/depth. It also restores the stored print profile, Auto flags, bearing name and metadata editors in Settings. Stored effective values are restored exactly, without recalculating Auto fields on load. Later explicit profile changes still update Auto fields. Face/position selections and the preview switch remain command controls, independent of the bearing preset.
+Search accepts designation, manufacturer, part number and dimensions. All space-separated terms must match. As of 0.4.3, explicitly selecting a catalog bearing replaces every stored seat parameter in the form: dimensions, fit/axial corrections, land count/angle/rotation, radial relief, radius, chamfer, shaft mode/allowance/depth and inner-ring relief switch/diameter/depth. It also restores the stored print profile, Auto flags and bearing name. As of 0.4.4, the catalog metadata editor is independent and remains unchanged by seat selection. Stored effective values are restored exactly, without recalculating Auto fields on load. Later explicit profile changes still update Auto fields. Face/position selections and the preview switch remain command controls, independent of the bearing preset.
 
 Built-in and older dimension-only entries have no historical seat settings to recover. Selecting one uses its d/D/B with the standard seat values (including 0.4 mm chamfer, shaft Off, inner relief disabled and bore-equal pending diameter), the packaged provisional print profile and three enabled Auto flags. This prevents settings leaking from the previously selected bearing. Unknown ring dimensions remain unknown. To retain custom fit/shaft/relief settings for future use, save a complete named preset again. Direct edits affect this command only until explicitly saved. The saved seat snapshot contains effective dimensions, original catalog dimensions, record identity, source and an override flag.
 
-Select **Manual dimensions** to disconnect catalog provenance while retaining current dimensions. Unknown inner-ring geometry remains unknown. The existing bore-equal relief preset and explicit manual drawing-based relief diameter remain in effect; even a custom record's known ring dimension does not automatically choose an uncalibrated radial clearance.
+Select **Manual dimensions** to disconnect catalog provenance while retaining current dimensions. As of 0.4.5, a known catalog inner-ring outside diameter replaces the automatic bore placeholder on explicit bearing selection, without added clearance. The suggestion remains editable and does not follow later bore edits. Explicit manual preset diameters take precedence. Unknown ring geometry retains the bore-follow placeholder. Reopening existing seats restores their snapshots without applying this catalog suggestion.
 
 Each print-derived field has an Auto checkbox. Editing its effective value switches that field to Manual; switching profiles changes only Auto fields. Enable Auto for one field to restore its suggestion, or use **Reset all three fields to suggested values**. No fit correction is derived from a print profile.
 
@@ -31,19 +31,25 @@ Each print-derived field has an Auto checkbox. Editing its effective value switc
 | Transition radius | 1 x nozzle diameter |
 | Inner-ring relief depth | 2 x layer height |
 
-The initial profile uses a 0.4 mm nozzle and 0.2 mm layers. Profile selection, Auto checkboxes, reset and factor editors are under Settings. Positive finite inputs are required. Infeasible contours are rejected, never silently clamped. Layer counts have physical meaning only when the seat axis aligns with print Z. These suggestions still require printed trials.
+The initial profile uses a 0.4 mm nozzle and 0.2 mm layers. Profile selection, Auto checkboxes and reset are on Bearing Seat. Reusable profile factor editors are under Settings. Positive finite inputs are required. Infeasible contours are rejected, never silently clamped. Layer counts have physical meaning only when the seat axis aligns with print Z. These suggestions still require printed trials.
 
 The wall-warning factor starts at a provisional 2 x nozzle. In 0.3.0 this was stored for future use. Version 0.4.0 uses it for [conservative advisory margin probes](PREVIEW_AND_WALLS.md); these do not measure exact minimum wall thickness or establish a safe structural limit.
 
-## Settings tab
+## Bearing Catalog tab (0.4.4)
 
-Both **Save parameters to bearing catalog** below the preview status and **Save custom bearing with current d/D/B** in Settings now store a complete seat preset, profile snapshot and Auto flags. The first creates a new identity under the entered bearing name; the Settings action updates an existing custom ID or creates one when empty. Neither action silently updates existing geometry. Catalog selection fills the metadata editors automatically; the separate metadata-load action remains available.
+Select a bearing in the independent catalog list. The editor displays its designation, manufacturer, source and other metadata, d/D/B and optional drawing-based ring diameter (0 means unknown). Expand Saved seat parameters to edit fit, contact contour, shaft opening and inner-ring relief. The stored profile snapshot and Auto flags are retained; editing a derived value marks it Manual on save.
 
-- To create a custom bearing, set d/D/B on Bearing Seat, fill its designation and optional manufacturer, part number, source/drawing, notes and purchasing URL in Settings. Leave Custom ID empty, then use **Save custom bearing with current d/D/B**. The optional ring outside diameter uses 0 in the editor for unknown and JSON null in storage.
-- To copy a seed or edit a custom record, select it on Bearing Seat and use **Load selected bearing metadata**. Seed copies receive new custom IDs; custom records retain their ID. Save updates that custom ID. Clear Custom ID to create a separate record. Seed aliases cannot be updated or deleted.
-- **Delete custom bearing by ID** removes that local record. Existing seats and the active dialog retain snapshots.
-- Select a print profile, change its name/nozzle/layer/factors and use **Save and use named profile**. An existing name updates that profile; a new name creates a separate one. Save also applies the profile to this dialog's Auto fields. At least one local profile must remain. Deleting a profile keeps the active dialog's stored profile and effective values; explicitly select another profile to change them.
-- Import/export accepts a separate absolute `.json` path. Export requires a new destination filename. Import validates the entire document and merges by stable record identity; duplicate profile names with different IDs are rejected. An import does not change the active seat's effective values or historical snapshots. Select an imported profile/record explicitly to use it.
+- Choose New bearing to create a record with standard dimensions and seat values.
+- Save bearing updates the selected custom record by its private stable identity. Saving a built-in size creates an editable custom copy. No ID entry is required.
+- Delete selected bearing removes only the selected local record. Built-in aliases cannot be deleted. The editor resets after deletion.
+- Catalog edits never read dimensions from the current seat, nor change its values. Existing geometry retains independent snapshots. To use an updated record, select it explicitly on Bearing Seat.
+- The Save parameters to bearing catalog shortcut on Bearing Seat still creates a new complete preset from the current seat under the entered name.
+
+## Settings tab (0.4.4)
+
+Reusable print profiles and JSON data transfer are separate collapsible groups. Selecting a profile in Settings populates the profile editor without changing the active seat. Save and use named profile explicitly saves and applies it to Auto fields. An existing name updates that profile; a new name creates a separate one. At least one local profile must remain. Deleting a profile keeps active and existing seat snapshots.
+
+Import/export accepts a separate absolute .json path. Export requires a new destination filename. Import validates the entire document and merges by stable record identity; duplicate profile names with different IDs are rejected. Import does not change active seat values or historical snapshots. Select an imported profile/record explicitly to use it.
 
 Save, delete and import take effect immediately in local settings. Cancelling the geometry command does not undo these explicit library actions. Unsaved editor changes are discarded. Geometry preview/cancel does not itself write settings.
 

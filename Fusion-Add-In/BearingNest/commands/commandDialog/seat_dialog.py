@@ -27,6 +27,7 @@ class SeatDialog:
         chooser.listItems.add(TEXT['new_batch'], True, '')
         self.fields['seat_batch'] = chooser
         self.fields['catalog_search'] = inputs.addStringValueInput('catalog_search', TEXT['catalog_search'], '')
+        self.fields['catalog_search'].tooltip = TEXT['catalog_search_help']
         self.fields['catalog_bearing'] = inputs.addDropDownCommandInput(
             'catalog_bearing', TEXT['catalog_bearing'], adsk.core.DropDownStyles.TextListDropDownStyle)
         if getattr(app, 'activeProduct', None) is not None:
@@ -48,29 +49,39 @@ class SeatDialog:
         position.setSelectionLimits(1, 0)
         self.fields.update(seat_face=face, seat_position=position)
         self.fields['seat_preview'] = inputs.addBoolValueInput('seat_preview', TEXT['preview'], True, '', True)
-        extra_fields = {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm',
-                        'inner_diameter_mm', 'inner_depth_mm'}
-        self._add_values(inputs, {field[0] for field in PARAMETER_FIELDS} - extra_fields)
-        count = inputs.addDropDownCommandInput('land_count', TEXT['land_count'],
+        dimensions = self._group(inputs, 'seat_dimensions_group', 'bearing_dimensions_group')
+        self._add_values(dimensions, {'bore_mm', 'outside_mm', 'width_mm'})
+        fit = self._group(inputs, 'seat_fit_group', 'seat_fit_group')
+        self._add_values(fit, {'correction_mm', 'axial_mm', 'chamfer_mm'})
+        contour = self._group(inputs, 'seat_contour_group', 'seat_contour_group')
+        count = contour.addDropDownCommandInput('land_count', TEXT['land_count'],
                                                adsk.core.DropDownStyles.TextListDropDownStyle)
         for value in (3, 5, 7, 9):
             count.listItems.add(str(value), value == 5, '')
         self.fields['land_count'] = count
-        mode = inputs.addDropDownCommandInput('shaft_mode', TEXT['shaft_mode'],
+        self._add_values(contour, {'land_degrees', 'rotation_degrees', 'relief_mm', 'fillet_mm'})
+        shaft = self._group(inputs, 'seat_shaft_group', 'seat_shaft_group')
+        mode = shaft.addDropDownCommandInput('shaft_mode', TEXT['shaft_mode'],
                                               adsk.core.DropDownStyles.TextListDropDownStyle)
         for name in ('Off', 'Through All', 'Blind'):
             mode.listItems.add(label(name), name == 'Off', '')
         self.fields['shaft_mode'] = mode
-        self._add_values(inputs, {'bore_mm', 'shaft_allowance_mm', 'blind_depth_mm'})
-        self.fields['inner_relief_enabled'] = inputs.addBoolValueInput(
+        self._add_values(shaft, {'shaft_allowance_mm', 'blind_depth_mm'})
+        relief = self._group(inputs, 'seat_relief_group', 'seat_relief_group')
+        self.fields['inner_relief_enabled'] = relief.addBoolValueInput(
             'inner_relief_enabled', TEXT['inner_relief_enabled'], True, '', False)
-        self._add_values(inputs, {'inner_diameter_mm', 'inner_depth_mm'})
+        self._add_values(relief, {'inner_diameter_mm', 'inner_depth_mm'})
         self._sync_inner_diameter()
         self._refresh_controls()
         self.status = inputs.addTextBoxCommandInput('seat_status', '', TEXT['selection_required'], 4, True)
         self.status.isFullWidth = True
         if self._discovery_errors:
             self._set_status(escape(TEXT['repair_seats'].format(errors='; '.join(self._discovery_errors))))
+
+    def _group(self, inputs, identity, key):
+        group = inputs.addGroupCommandInput(identity, TEXT[key])
+        group.isExpanded = True
+        return group.children
 
     def _add_values(self, inputs, identities):
         for identity, label, units, expression in PARAMETER_FIELDS:
@@ -127,7 +138,7 @@ class SeatDialog:
             return
         mode = source_label(self.fields['shaft_mode'].selectedItem.name)
         states = {}
-        for identity in ('bore_mm', 'shaft_allowance_mm'):
+        for identity in ('shaft_allowance_mm',):
             states[identity] = mode != 'Off'
         states['blind_depth_mm'] = mode == 'Blind'
         states['inner_relief_enabled'] = mode != 'Off'

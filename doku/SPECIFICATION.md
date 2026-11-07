@@ -9,8 +9,9 @@ Select a planar face and one or more supported points or circle centers on that 
 ## Dialog
 
 1. **Bearing Seat**: face/position selection, searchable bearing library selection, dimensions, land count and width, pattern rotation, diameter correction, axial position, lead-in chamfer, shaft opening, inner-ring relief, preview and resulting effective dimensions.
-2. **Settings**: bearing library management and named print profile management. Allow custom bearing entries and manual dimension overrides. Manage nozzle diameter, layer height, relief factors and thin-wall warning threshold. Local JSON import/export is a provisional storage choice; include schema versions and input validation.
-3. **About**: logo, version, purpose, concise workflow, parameter/sign explanations, printing guidance, limitations, and project/documentation links once available. Never invent repository URLs.
+2. **Bearing Catalog**: independent catalog selection and editing of bearing metadata, dimensions and complete seat presets; explicit save and delete buttons. Built-in sizes are copied to custom records. Library changes do not silently change active or existing seats.
+3. **Settings**: reusable named print profiles (nozzle diameter, layer height, relief factors and thin-wall warning threshold) and local JSON import/export, grouped by purpose. Profile selection and Auto/Manual controls for the current seat belong on Bearing Seat.
+4. **Info**: logo, version, purpose, parameter/sign explanations, printing guidance, limitations, project/download and issue links, Know-How-Schmiede YouTube and homepage links.
 
 ## Bearing library
 
@@ -78,7 +79,7 @@ Thin remaining walls produce a warning only; allow creation when the complete co
 
 ## Persistence and editing
 
-Persist placement references, effective geometry parameters, auto/manual flags, selected profile snapshot, bearing snapshot, schema version and identifiers needed to locate generated geometry. Reopening must populate the three-tab dialog and support preview/apply/cancel. Detect lost references and report repair requirements. Edits must not duplicate seats or leave failed partial results. Native parameter dependencies and edit strategy are subject to the supported Fusion API prototype.
+Persist placement references, effective geometry parameters, auto/manual flags, selected profile snapshot, bearing snapshot, schema version and identifiers needed to locate generated geometry. Reopening must populate the dialog and support preview/apply/cancel. Detect lost references and report repair requirements. Edits must not duplicate seats or leave failed partial results. Native parameter dependencies and edit strategy are subject to the supported Fusion API prototype.
 
 ## Remaining decisions
 

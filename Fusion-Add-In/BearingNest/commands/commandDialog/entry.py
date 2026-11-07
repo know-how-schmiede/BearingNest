@@ -1,4 +1,4 @@
-"""BearingNest registration and three-tab seat prototype dialog."""
+"""BearingNest registration and seat, catalog, settings and info dialog."""
 import os
 import adsk.core
 from ...lib import fusionAddInUtils as futil
@@ -98,11 +98,12 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
                             (command.execute, dialog.execute)):
         futil.add_handler(event, callback, local_handlers=local_handlers)
 
+    catalog = inputs.addTabCommandInput('catalog_tab', TEXT['catalog_tab']).children
     settings = inputs.addTabCommandInput('settings_tab', TEXT['settings']).children
     _text(settings, 'settings_status', 'settings_status', 4)
     dialog._refreshing = True
     try:
-        dialog.catalog = CatalogDialog(seat, settings, dialog)
+        dialog.catalog = CatalogDialog(seat, settings, dialog, catalog)
     finally:
         dialog._refreshing = False
 
@@ -114,6 +115,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         'version', '', f'<b>{config.ADDIN_NAME} {VERSION}</b>', 1, True)
     version.isFullWidth = True
     _text(about, 'purpose', 'description', 2)
+    _text(about, 'project_links', 'project_links', 5)
     _text(about, 'parameter_help', 'parameter_help', 5)
     _text(about, 'printing_help', 'printing_help', 3)
     _text(about, 'limitations', 'limitations', 3)

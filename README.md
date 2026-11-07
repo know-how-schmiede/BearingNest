@@ -2,11 +2,15 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.3** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.5** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+Version 0.4.5 uses a known catalog inner-ring outside diameter as the inner-ring relief diameter suggestion when selecting a bearing. No extra clearance is added. Manual preset values and existing seat snapshots are retained; unknown ring dimensions still use the bore placeholder.
+
+Version 0.4.4 reorganizes the dialog into **Bearing Seat**, **Bearing Catalog**, **Settings** and **Info**. The short **Find bearing / Lager suchen** field includes search examples in its tooltip. Seat geometry is grouped by purpose; profile selection and Auto flags live with the seat. Settings contains reusable print profiles and import/export. The independent catalog editor supports selecting, editing, saving and deleting local bearings, including complete seat presets; built-in sizes are saved as custom copies. Info links to the project/download, issue tracker, Know-How-Schmiede YouTube channel and homepage. Native Fusion layout and interaction acceptance is pending.
 
 Version 0.4.3 loads all stored seat settings, profile/Auto flags, name and metadata when a catalog entry is selected. Both catalog save actions retain complete presets. Older dimension-only entries load standard seat/profile settings with their bearing dimensions; resave them to retain custom settings. See [catalog behavior and acceptance checks](doku/CATALOG_AND_PROFILES.md).
 
@@ -16,7 +20,7 @@ Version 0.4.2 streamlines Bearing Seat: catalog selection follows the create/edi
 
 On 2026-11-04 the owner confirmed the library and editing existing seats, including multiple seats together. See [the new 0.3.0 screenshots and earlier version-specific evidence](doku/SCREENSHOTS.md).
 
-- `BearingNest <VERSION>` under Design > Solid > Create, with three localized tabs: **Bearing Seat / Lagersitz**, **Settings / Einstellungen**, **About / Über**.
+- `BearingNest <VERSION>` under Design > Solid > Create, with four localized tabs: **Bearing Seat / Lagersitz**, **Bearing Catalog / Lagerkatalog**, **Settings / Einstellungen**, **Info**.
 - German UI follows Fusion's user-language preference; English is the fallback. Restart the add-in after changing Fusion's language. Dialog labels, help, status and wall warnings are translated; technical geometry/storage exception details and built-in profile names remain English. Saved data and user-entered names are preserved. German native layout and preview/edit acceptance still require a Fusion trial.
 - One planar face and multiple sketch points, vertices or circular edge centers as seat positions, with shared settings.
 - Manual bearing outside diameter/width, diameter and axial corrections, 3/5/7/9 lands, contact angle, rotation, radial relief depth and transition radius.

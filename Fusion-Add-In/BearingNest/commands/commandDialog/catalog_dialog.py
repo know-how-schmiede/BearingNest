@@ -1,4 +1,4 @@
-"""Catalog/profile controls in the existing three-tab command."""
+"""Independent catalog editor and shared print-profile controls."""
 from copy import deepcopy
 from dataclasses import asdict
 from html import escape
@@ -12,7 +12,7 @@ from ...seat_parameters import SeatParameters
 
 
 class CatalogDialog:
-    def __init__(self, seat_inputs, settings, seat):
+    def __init__(self, seat_inputs, settings, seat, catalog):
         self.seat = seat
         self.fields = seat.fields
         self.bearing = None
@@ -25,33 +25,61 @@ class CatalogDialog:
             self.data = model.defaults()
             self.load_error = str(error)
         self.profile = deepcopy(self.data['profiles'][0])
+        self.managed_profile = deepcopy(self.profile)
+        seat_profile = self._group(seat_inputs, 'seat_profile_group', 'seat_profile_group')
+        self._dropdown(seat_profile, 'print_profile', TEXT['print_profile'])
+        for field in model.DERIVED:
+            self._bool(seat_profile, field + '_auto', TEXT[field + '_auto'], True)
+        self._bool(seat_profile, 'profile_reset', TEXT['profile_reset'], button=True)
         self._string(seat_inputs, 'catalog_save_name', TEXT['catalog_save_name'])
         self.fields['catalog_save'] = seat_inputs.addBoolValueInput(
             'catalog_save', TEXT['catalog_save'], False, '', False)
         self.save_status = seat_inputs.addTextBoxCommandInput('catalog_save_status', '', '', 2, True)
         self.save_status.isFullWidth = True
-        self._dropdown(settings, 'print_profile', TEXT['print_profile'])
-        for field in model.DERIVED:
-            self._bool(settings, field + '_auto', TEXT[field + '_auto'], True)
-        self._bool(settings, 'profile_reset', TEXT['profile_reset'])
-        self._string(settings, 'custom_id', TEXT['custom_id'])
-        for field, label in BEARING_TEXT_FIELDS:
-            self._string(settings, 'custom_' + field, label)
-        self._value(settings, 'custom_inner_mm', TEXT['custom_inner_mm'], 'mm', 0)
-        self._bool(settings, 'bearing_load', TEXT['bearing_load'])
-        self._bool(settings, 'bearing_save', TEXT['bearing_save'])
-        self._bool(settings, 'bearing_delete', TEXT['bearing_delete'])
+        help_field = catalog.addTextBoxCommandInput('catalog_help', '', TEXT['catalog_help'], 4, True)
+        help_field.isFullWidth = True
+        self._dropdown(catalog, 'catalog_editor', TEXT['catalog_bearing'])
+        metadata = self._group(catalog, 'bearing_data_group', 'bearing_data_group')
+        for field, title in BEARING_TEXT_FIELDS:
+            self._string(metadata, 'custom_' + field, title)
+        # Identity is private editor state, never a user-entered deletion target.
+        self.editor_bearing = None
+        self.editor_profile = deepcopy(model.DEFAULT_PROFILE)
+        self.editor_flags = {}
+        dimensions = self._group(catalog, 'bearing_dimensions_group', 'bearing_dimensions_group')
+        preset = self._group(catalog, 'bearing_preset_group', 'bearing_preset_group', expanded=False)
+        for key, title, units, expression in PARAMETER_FIELDS:
+            parent = dimensions if key in ('bore_mm', 'outside_mm', 'width_mm') else preset
+            self.fields['edit_' + key] = parent.addValueInput('edit_' + key, title, units,
+                adsk.core.ValueInput.createByString(expression))
+        self._value(dimensions, 'custom_inner_mm', TEXT['custom_inner_mm'], 'mm', 0)
+        for key, title, values in (('land_count', TEXT['land_count'], (3, 5, 7, 9)),
+                                    ('shaft_mode', TEXT['shaft_mode'], ('Off', 'Through All', 'Blind'))):
+            self._dropdown(preset, 'edit_' + key, title)
+            for value in values:
+                self.fields['edit_' + key].listItems.add(label(str(value)),
+                    value == getattr(SeatParameters(), key), '')
+        self._bool(preset, 'edit_inner_relief_enabled', TEXT['inner_relief_enabled'])
+        self._bool(catalog, 'bearing_save', TEXT['bearing_save'], button=True)
+        self._bool(catalog, 'bearing_delete', TEXT['bearing_delete'], button=True)
+        self.editor_status = catalog.addTextBoxCommandInput('catalog_editor_status', '', '', 3, True)
+        self.editor_status.isFullWidth = True
+        settings_root = settings
+        settings = self._group(settings_root, 'profiles_group', 'profiles_group')
+        self._dropdown(settings, 'settings_profile', TEXT['print_profile'])
         self._string(settings, 'profile_name', TEXT['profile_name'], self.profile['name'])
-        for field, label, units in PROFILE_FIELDS:
-            self._value(settings, 'profile_' + field, label, units, self.profile[field])
-        self._bool(settings, 'profile_save', TEXT['profile_save'])
-        self._bool(settings, 'profile_delete', TEXT['profile_delete'])
+        for field, title, units in PROFILE_FIELDS:
+            self._value(settings, 'profile_' + field, title, units, self.profile[field])
+        self._bool(settings, 'profile_save', TEXT['profile_save'], button=True)
+        self._bool(settings, 'profile_delete', TEXT['profile_delete'], button=True)
+        settings = self._group(settings_root, 'transfer_group', 'transfer_group', expanded=False)
         self._string(settings, 'settings_file', TEXT['settings_file'])
-        self._bool(settings, 'settings_import', TEXT['settings_import'])
-        self._bool(settings, 'settings_export', TEXT['settings_export'])
-        self.status = settings.addTextBoxCommandInput('catalog_status', '', '', 5, True)
+        self._bool(settings, 'settings_import', TEXT['settings_import'], button=True)
+        self._bool(settings, 'settings_export', TEXT['settings_export'], button=True)
+        self.status = settings_root.addTextBoxCommandInput('catalog_status', '', '', 5, True)
         self.status.isFullWidth = True
         self._choices()
+        self._load_editor(None)
         self._suggest()
         self.auto_state = self.flags()
         self._status(TEXT['settings_load_error'].format(error=escape(self.load_error))
@@ -64,8 +92,13 @@ class CatalogDialog:
         self.fields[identity] = inputs.addValueInput(identity, label, units,
             adsk.core.ValueInput.createByString(f'{value:.12g} {units}'.strip()))
 
-    def _bool(self, inputs, identity, label, initial=False):
-        self.fields[identity] = inputs.addBoolValueInput(identity, label, True, '', initial)
+    def _bool(self, inputs, identity, label, initial=False, *, button=False):
+        self.fields[identity] = inputs.addBoolValueInput(identity, label, not button, '', initial)
+
+    def _group(self, inputs, identity, key, *, expanded=True):
+        group = inputs.addGroupCommandInput(identity, TEXT[key])
+        group.isExpanded = expanded
+        return group.children
 
     def _dropdown(self, inputs, identity, label):
         self.fields[identity] = inputs.addDropDownCommandInput(identity, label,
@@ -92,6 +125,18 @@ class CatalogDialog:
         if self.profile not in self.profile_choices.values():
             self.profile_choices[TEXT['saved_profile']] = self.profile
         self._fill('print_profile', self.profile_choices, self.profile)
+        self.management_choices = {f"{r['name']} [{r['id']}]": r for r in self.data['profiles']}
+        if self.managed_profile not in self.management_choices.values():
+            self.management_choices[TEXT['saved_profile']] = self.managed_profile
+        self._fill('settings_profile', self.management_choices, self.managed_profile)
+        self.editor_choices = {TEXT['new_catalog_bearing']: None}
+        for record in model.seed_bearings() + self.data['bearings']:
+            title = (f"{record['designation']} | {record['d_mm']:g} x {record['D_mm']:g} x "
+                     f"{record['B_mm']:g} mm [{record['id']}]")
+            self.editor_choices[title] = record
+        selected = next((r for r in self.editor_choices.values()
+                         if r and self.editor_bearing and r['id'] == self.editor_bearing['id']), None)
+        self._fill('catalog_editor', self.editor_choices, selected)
 
     def _fill(self, identity, choices, selected):
         items = self.fields[identity].listItems
@@ -126,6 +171,7 @@ class CatalogDialog:
             enabled = record.get('auto_flags', {}).get(field + '_auto', False)
             self.fields[field + '_auto'].value = enabled
             self.last_auto[field] = self.fields[field].value if enabled else None
+        self.managed_profile = deepcopy(self.profile)
         self._choices()
         self._profile_editor()
         # Display suggestions without applying them to historical geometry.
@@ -133,9 +179,9 @@ class CatalogDialog:
         self._suggest(apply=False)
 
     def _profile_editor(self):
-        self.fields['profile_name'].value = self.profile['name']
+        self.fields['profile_name'].value = self.managed_profile['name']
         for field, _, units in PROFILE_FIELDS:
-            self.fields['profile_' + field].expression = f'{self.profile[field]:.12g} {units}'.strip()
+            self.fields['profile_' + field].expression = f'{self.managed_profile[field]:.12g} {units}'.strip()
 
     def _save(self, candidate):
         if self.load_error:
@@ -148,6 +194,70 @@ class CatalogDialog:
         if not field.isValidExpression:
             raise ValueError(TEXT['invalid_settings_expression'])
         return field.value * 10 if length else field.value
+
+    @staticmethod
+    def _preset(record):
+        if record and record.get('seat_preset'):
+            preset = deepcopy(record['seat_preset'])
+        else:
+            values = asdict(SeatParameters(chamfer_mm=0.4))
+            if record:
+                values.update(bore_mm=record['d_mm'], outside_mm=record['D_mm'],
+                              width_mm=record['B_mm'], inner_diameter_mm=record['d_mm'])
+            preset = dict(parameters=values, profile=deepcopy(model.DEFAULT_PROFILE),
+                          auto_flags={key + '_auto': True for key in model.DERIVED})
+        values, flags = preset['parameters'], preset['auto_flags']
+        follows_bore = flags.get('inner_diameter_auto',
+            math.isclose(values['inner_diameter_mm'], values['bore_mm']))
+        ring = (record or {}).get('inner_ring_outside_mm')
+        if ring is not None and ring > 0 and follows_bore:
+            # A catalog drawing dimension replaces only the automatic placeholder.
+            # Do not add uncalibrated clearance or let bore-follow overwrite it.
+            values['inner_diameter_mm'] = ring
+            flags['inner_diameter_auto'] = False
+        return preset
+
+    def _load_editor(self, record):
+        self.editor_bearing = deepcopy(record)
+        preset = self._preset(record)
+        self.editor_profile = preset['profile']
+        self.editor_flags = preset['auto_flags']
+        values = preset['parameters']
+        self._editor_inner_auto = self.editor_flags.get('inner_diameter_auto',
+            math.isclose(values['inner_diameter_mm'], values['bore_mm']))
+        for key, _ in BEARING_TEXT_FIELDS:
+            self.fields['custom_' + key].value = record.get(key, '') if record else ''
+        self.fields['custom_inner_mm'].expression = f"{(record or {}).get('inner_ring_outside_mm') or 0:g} mm"
+        for key, _, units, _ in PARAMETER_FIELDS:
+            self.fields['edit_' + key].expression = f"{preset['parameters'][key]:.12g} {units}"
+        for key in ('land_count', 'shaft_mode'):
+            items = self.fields['edit_' + key].listItems
+            for index in range(items.count):
+                item = items.item(index)
+                if item.name == label(str(preset['parameters'][key])):
+                    item.isSelected = True
+                    break
+        self.fields['edit_inner_relief_enabled'].value = preset['parameters']['inner_relief_enabled']
+        self.fields['bearing_delete'].isEnabled = bool(record and record['id'].startswith('custom-'))
+        self.editor_status.formattedText = TEXT['catalog_builtin_copy'] if record and not record['id'].startswith('custom-') else ''
+
+    def _editor_preset(self):
+        values = {key: self._number('edit_' + key) if units == 'mm'
+                  else math.degrees(self._number('edit_' + key, False))
+                  for key, _, units, _ in PARAMETER_FIELDS}
+        values.update(land_count=int(self.fields['edit_land_count'].selectedItem.name),
+                      shaft_mode=source_label(self.fields['edit_shaft_mode'].selectedItem.name),
+                      inner_relief_enabled=self.fields['edit_inner_relief_enabled'].value)
+        parameters = SeatParameters(**values)
+        parameters.validate()
+        parameters.segments()
+        flags = deepcopy(self.editor_flags)
+        previous = self._preset(self.editor_bearing)['parameters']
+        for key in model.DERIVED:
+            if not math.isclose(values[key], previous[key], abs_tol=1e-10):
+                flags[key + '_auto'] = False
+        flags['inner_diameter_auto'] = self._editor_inner_auto
+        return dict(parameters=asdict(parameters), profile=deepcopy(self.editor_profile), auto_flags=flags)
 
     def process(self, identity):
         """Called only from inputChanged with the parent's recursive-event guard set."""
@@ -162,6 +272,20 @@ class CatalogDialog:
                 self.save_status.formattedText = escape(str(error))
         elif identity == 'catalog_search':
             self._choices()
+        elif identity == 'catalog_editor':
+            selected = self.fields[identity].selectedItem.name
+            if selected != self._selected_catalog_editor:
+                self._selected_catalog_editor = selected
+                self._load_editor(self.editor_choices[selected])
+        elif identity == 'edit_bore_mm' and self._editor_inner_auto:
+            bore = self.fields[identity]
+            if bore.isValidExpression and bore.value > 0:
+                self.fields['edit_inner_diameter_mm'].expression = f'{bore.value * 10:.12g} mm'
+        elif identity == 'edit_inner_diameter_mm':
+            diameter = self.fields[identity]
+            bore = self.fields['edit_bore_mm']
+            if not diameter.isValidExpression or not bore.isValidExpression or not math.isclose(diameter.value, bore.value):
+                self._editor_inner_auto = False
         elif identity == 'catalog_bearing':
             label = self.fields[identity].selectedItem.name
             if label == self._selected_catalog_bearing:
@@ -169,22 +293,9 @@ class CatalogDialog:
             self._selected_catalog_bearing = label
             self.bearing = deepcopy(self.bearing_choices[label])
             if self.bearing:
-                preset = self.bearing.get('seat_preset')
-                if preset is None:
-                    # Dimension-only records must not inherit the last bearing's
-                    # shaft, relief, fit or print settings.
-                    values = asdict(SeatParameters())
-                    values.update(bore_mm=self.bearing['d_mm'], outside_mm=self.bearing['D_mm'],
-                                  width_mm=self.bearing['B_mm'], inner_diameter_mm=self.bearing['d_mm'],
-                                  chamfer_mm=0.4)
-                    preset = dict(parameters=values, profile=deepcopy(model.DEFAULT_PROFILE),
-                                  auto_flags={key + '_auto': True for key in model.DERIVED})
+                preset = self._preset(self.bearing)
                 self._restore_preset(preset)
                 self.fields['catalog_save_name'].value = self.bearing['designation']
-                self.fields['custom_id'].value = self.bearing['id'] if self.bearing['id'].startswith('custom-') else ''
-                for field, _ in BEARING_TEXT_FIELDS:
-                    self.fields['custom_' + field].value = self.bearing.get(field, '')
-                self.fields['custom_inner_mm'].expression = f"{self.bearing.get('inner_ring_outside_mm') or 0:.12g} mm"
                 self.save_status.formattedText = ''
         elif identity == 'print_profile':
             label = self.fields[identity].selectedItem.name
@@ -192,8 +303,16 @@ class CatalogDialog:
                 return
             self._selected_print_profile = label
             self.profile = deepcopy(self.profile_choices[label])
+            self.managed_profile = deepcopy(self.profile)
+            self._choices()
             self._profile_editor()
             self._suggest()
+        elif identity == 'settings_profile':
+            selected = self.fields[identity].selectedItem.name
+            if selected != self._selected_settings_profile:
+                self._selected_settings_profile = selected
+                self.managed_profile = deepcopy(self.management_choices[selected])
+                self._profile_editor()
         elif identity in model.DERIVED:
             field = self.fields[identity]
             if (not field.isValidExpression or self.last_auto.get(identity) is None or
@@ -213,50 +332,43 @@ class CatalogDialog:
                 self.fields[field + '_auto'].value = True
             self.auto_state = self.flags()
             self._suggest()
-        elif identity in ('bearing_load', 'bearing_save', 'bearing_delete', 'profile_save',
+        elif identity in ('bearing_save', 'bearing_delete', 'profile_save',
                           'profile_delete', 'settings_import', 'settings_export') and self.fields[identity].value:
             self.fields[identity].value = False
             try:
                 self._action(identity)
-                self._status(TEXT['settings_saved'])
+                if identity.startswith('bearing_'):
+                    self.editor_status.formattedText = TEXT['catalog_action_saved']
+                else:
+                    self._status(TEXT['settings_saved'])
             except Exception as error:
-                self._status(escape(str(error)))
+                if identity.startswith('bearing_'):
+                    self.editor_status.formattedText = escape(str(error))
+                else:
+                    self._status(escape(str(error)))
 
     def _action(self, identity):
         candidate = deepcopy(self.data)
-        if identity == 'bearing_load':
-            if not self.bearing:
-                raise ValueError(TEXT['choose_bearing'])
-            record = self.bearing
-            # Built-ins are copied to new custom identities rather than overwritten.
-            self.fields['custom_id'].value = record.get('id', '') if record.get('id', '').startswith('custom-') else ''
-            for field, _ in BEARING_TEXT_FIELDS:
-                self.fields['custom_' + field].value = record.get(field, '')
-            self.fields['custom_inner_mm'].expression = f"{record.get('inner_ring_outside_mm') or 0:.12g} mm"
-            return
         if identity == 'bearing_save':
             record = {field: self.fields['custom_' + field].value.strip() for field, _ in BEARING_TEXT_FIELDS}
-            record['id'] = self.fields['custom_id'].value.strip() or 'custom-' + str(uuid4())
-            if not record['id'].startswith('custom-'):
-                raise ValueError(TEXT['custom_identity_required'])
+            existing = self.editor_bearing
+            record['id'] = existing['id'] if existing and existing['id'].startswith('custom-') else 'custom-' + str(uuid4())
             for key, field in (('d_mm', 'bore_mm'), ('D_mm', 'outside_mm'), ('B_mm', 'width_mm')):
-                record[key] = self._number(field)
+                record[key] = self._number('edit_' + field)
             inner = self._number('custom_inner_mm')
             record['inner_ring_outside_mm'] = None if inner == 0 else inner
-            record['seat_preset'] = self._capture_preset()
+            record['seat_preset'] = self._editor_preset()
             model.validate_bearing(record)
             candidate['bearings'] = [r for r in candidate['bearings'] if r['id'] != record['id']] + [record]
             self._save(candidate)
-            self.bearing = deepcopy(record)
-            self.fields['custom_id'].value = record['id']
+            self._load_editor(record)
         elif identity == 'bearing_delete':
-            identity_to_delete = self.fields['custom_id'].value.strip()
+            identity_to_delete = (self.editor_bearing or {}).get('id')
             if not any(r['id'] == identity_to_delete for r in candidate['bearings']):
                 raise ValueError(TEXT['custom_identity_required'])
             candidate['bearings'] = [r for r in candidate['bearings'] if r['id'] != identity_to_delete]
             self._save(candidate)
-            # Retain this dialog's detached snapshot, including during an edit.
-            self.fields['custom_id'].value = ''
+            self._load_editor(None)
         elif identity == 'profile_save':
             name = self.fields['profile_name'].value.strip()
             existing = next((r for r in candidate['profiles'] if r['name'].casefold() == name.casefold()), None)
@@ -268,11 +380,12 @@ class CatalogDialog:
             candidate['profiles'] = [r for r in candidate['profiles'] if r['id'] != record['id']] + [record]
             self._save(candidate)
             self.profile = deepcopy(record)
+            self.managed_profile = deepcopy(record)
             self._suggest()
         elif identity == 'profile_delete':
-            if not any(r['id'] == self.profile.get('id') for r in candidate['profiles']):
+            if not any(r['id'] == self.managed_profile.get('id') for r in candidate['profiles']):
                 raise ValueError(TEXT['choose_local_profile'])
-            candidate['profiles'] = [r for r in candidate['profiles'] if r['id'] != self.profile['id']]
+            candidate['profiles'] = [r for r in candidate['profiles'] if r['id'] != self.managed_profile['id']]
             self._save(candidate)
             # Deleting a library entry must not recalculate the active seat.
         elif identity in ('settings_import', 'settings_export'):

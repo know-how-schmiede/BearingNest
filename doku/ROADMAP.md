@@ -21,6 +21,10 @@ Before continuing with 0.5.0, review German layout in Fusion, including Settings
 
 ## Immediate next steps
 
+Version 0.4.5 adds known catalog inner-ring diameter suggestions without extra clearance. Verify selection with known/unknown ring dimensions, manual overrides and preservation of existing seat snapshots in Fusion.
+
+Version 0.4.4 reorganizes the UI at the owner's request on 2026-11-07: four tabs, grouped seat controls, an independent catalog editor, general print-profile/data management and Info links. Verify German/English native layout, catalog create/update/delete (including failed saves), separation from active seat settings and hyperlink opening in Fusion before accepting the UI change.
+
 The owner confirmed automatic German selection in German Fusion on 2026-11-05. Version 0.4.2 implements the requested compact dialog and named parameter saves in the catalog. Check the native button, layout and preset reload, including after reopening Fusion; automated checks do not replace this UI acceptance.
 
 1. Run the [0.4.0 preview/wall acceptance procedure](PREVIEW_AND_WALLS.md#acceptance-in-fusion-pending) on a disposable design. Record Fusion build and OS; the owner's 0.3.0 library/edit confirmation is recorded separately.

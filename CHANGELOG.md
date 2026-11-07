@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.5 - 2026-11-07
+
+- On explicit catalog selection, use a known drawing-based inner-ring outside diameter as the relief-diameter suggestion, without adding clearance. Replace only automatic bore placeholders, including those in complete presets; preserve manual preset values and historical seat snapshots.
+- Share preset preparation with the catalog editor. Unknown ring geometry retains the bore-follow placeholder. Catalog-derived suggestions remain editable and are not overwritten by bore changes.
+
+Validation: 141 automated tests pass; version synchronization passes. Native Fusion acceptance remains pending.
+
+## 0.4.4 - 2026-11-07
+
+- Split the dialog into Bearing Seat, Bearing Catalog, Settings and Info. Shorten bearing search and explain matching with tooltip examples.
+- Group seat dimensions, fit/chamfer, contact contour, shaft opening and inner-ring relief. Keep bearing bore editable when shaft opening is Off. Move seat-specific profile selection, Auto switches and reset to Bearing Seat.
+- Add an independent catalog selector/editor for metadata, bearing dimensions and complete seat parameters. Save updates the selected custom record; built-ins create custom copies. Delete targets only the selected local record. Catalog edits preserve active and historical seat snapshots. Invalid input and failed storage preserve the previous library.
+- Group reusable print profile management and JSON transfer under Settings. Selecting a profile for inspection there does not change the active seat; Save and use remains explicit.
+- Rename About to Info and add project/download, bug-report, YouTube and homepage links.
+
+Validation: 139 automated tests pass, including catalog isolation, selected-entry update/delete, failed saves, independent profile inspection and bore-follow overrides. Version synchronization passes. Native Fusion layout, buttons, links, preview and cancel remain pending.
+
 ## 0.4.3 - 2026-11-05
 
 - Make explicit bearing selection load the complete saved seat/profile preset plus name, metadata and Auto state. Select only the matching dropdown item when restoring land count and shaft mode.
