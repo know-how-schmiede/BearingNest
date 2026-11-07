@@ -13,7 +13,7 @@ def short_title(key, title):
     return TEXT.get('short_' + key.removeprefix('edit_'), title)
 
 
-def compact_control(inputs, field, title, *, help_key=None, section='values'):
+def compact_control(inputs, field, title, *, help_key=None, section='values', show_label=True):
     """Give labels and controls equal column widths."""
     key = help_key or field.id.removeprefix('edit_')
     parent = field.parentCommandInput
@@ -32,7 +32,8 @@ def compact_control(inputs, field, title, *, help_key=None, section='values'):
     table.maximumVisibleRows = row + 1
     # All rows are known at construction; avoid a flexible table-height range.
     table.minimumVisibleRows = row + 1
-    caption = inputs.addStringValueInput(field.id + '_label', '', short_title(key, title))
+    caption = inputs.addStringValueInput(field.id + '_label', '',
+        short_title(key, title) if show_label else '')
     caption.isReadOnly = True
     caption.isFullWidth = True
     field.isFullWidth = True

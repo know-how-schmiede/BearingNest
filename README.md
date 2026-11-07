@@ -2,11 +2,17 @@
 
 ![BearingNest banner](images/banner.svg)
 
-Version: **0.4.8** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
+Version: **0.4.9** · Status: owner confirmed 0.3.0 library and existing-seat/batch editing. New preview diagnostics and advisory wall probes await live Fusion acceptance.
 
 BearingNest creates print-oriented ball bearing seat contours with rounded reliefs and an odd number of contact lands.
 
 ## Available in this prototype
+
+Version 0.4.9 collects each committed seat batch in a collapsed timeline group named like its Seat mode entry. The owner confirmed that grouping works on 2026-11-07.
+
+![BearingNest 0.4.9 German Seat mode list and grouped Fusion timeline](images/screenshots/07-11-2026_17-51-50.png)
+
+See the [0.4.9 screenshot and trial notes](doku/SCREENSHOTS.md#049-seat-mode-and-timeline-groups-german). Earlier version-specific screenshots remain below and in the screenshot guide.
 
 The 0.4.8 action buttons (catalog/profile save/delete, reset and import/export) also align with the right-hand control column. Face and position pickers retain Fusion's native placement: SelectionCommandInputs are not supported inside native tables, so those two controls are not exactly aligned to the table columns.
 
@@ -48,7 +54,7 @@ On 2026-11-04 the owner confirmed the library and editing existing seats, includ
 - Optional manual inner-ring relief starting at the seat floor, with its own diameter and depth.
 - Optional 45-degree lead-in chamfer with equal axial/radial legs; 0 mm disables it. A conservative enclosing-cylinder preflight may reject close placements.
 - A versioned snapshot per seat with direct-cut, clearance and chamfer references, stable seat identity and creation-batch identity. Validation tool extrusions are removed before cutting.
-- A Create or edit seats list reloads saved batches. The last complete batch can be rebuilt with shared settings; downstream features, timeline groups and missing/ambiguous references block editing.
+- A Create or edit seats list reloads saved batches. Committed batches have a collapsed timeline group named like their Seat mode entry. The last complete batch can be rebuilt with shared settings, including within its own expanded or collapsed group; downstream features, unrelated group contents and missing/ambiguous references block editing.
 - Searchable verified seed sizes 623/624/625/608, custom bearing records with sources and optional purchasing URLs, and manual dimension overrides.
 - Named print profiles with per-field Auto/Manual settings, reset to suggestions, versioned local JSON storage and validated import/export. Existing seats keep independent bearing/profile snapshots.
 - Contour sketches hidden after cutting, with profiles kept enabled for feature calculation; successful creation also hides profile fills on selected placement sketches while preserving points, curves and sketch visibility.
@@ -61,7 +67,7 @@ Use the complete [BearingNest add-in folder](Fusion-Add-In/BearingNest). If Fusi
 
 Follow the [installation and test guide](doku/INSTALLATION.md), including the [new clearance tests](doku/SHAFT_AND_RELIEF.md), on a disposable design. Preview and creation were confirmed in 0.1.5 after fixing premature profile suppression. The owner reported a missing Through All shaft in 0.1.6. The owner confirmed shaft opening and inner-ring relief working in 0.1.7. The owner reported no observed errors while testing 0.1.8 on 2026-11-03. This is a general trial report, not a completed matrix of every acceptance case. The bore preset previews/creates the seat and shaft without an additional relief cut; a larger drawing-based diameter enables actual relief.
 
-Target environments are Autodesk Fusion on Windows and macOS with Fusion's bundled Python. No third-party Python packages are required. The latest owner screenshots show Windows and the German version 0.4.5 dialog; the Fusion build was not supplied. Separate chamfer/cancel/undo acceptance, diagnostic graphics, the 0.4.6 layout changes and macOS remain unverified.
+Target environments are Autodesk Fusion on Windows and macOS with Fusion's bundled Python. No third-party Python packages are required. The latest owner screenshot shows Windows and the German version 0.4.9 dialog; the Fusion build was not supplied. Separate chamfer/cancel/undo acceptance, diagnostic graphics and macOS remain unverified.
 
 ## Version maintenance
 
@@ -74,7 +80,7 @@ The only manually maintained current release version is [version.py](Fusion-Add-
 - [Roadmap](doku/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Contour A](doku/CONTOUR_PROPOSAL.md)
-- [Screenshots of the 0.4.5 dialog, 0.3.0 and earlier confirmed baselines](doku/SCREENSHOTS.md)
+- [Screenshots of 0.4.9 timeline groups, the 0.4.5 dialog and earlier baselines](doku/SCREENSHOTS.md)
 - [Shaft opening and inner-ring relief](doku/SHAFT_AND_RELIEF.md)
 - [Persistence, batch editing and remaining live proof](doku/PERSISTENCE_PROTOTYPE.md)
 - [Bearing catalog, named print profiles and local settings](doku/CATALOG_AND_PROFILES.md)

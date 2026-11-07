@@ -1,7 +1,15 @@
 # Changelog
 
+## 0.4.9 - 2026-11-07
+
+- Collect each committed seat batch's generated sketches and cuts in one collapsed Fusion timeline group. Use the same localized batch label as the corresponding Seat mode entry.
+- Allow editing the last complete batch inside its own expanded or collapsed group. Replace the old group on commit; reject groups containing unrelated operations and batches with downstream features. Previews create no timeline groups.
+
+Validation: 175 automated tests pass; version synchronization passes. Grouping and edit orchestration checks use API substitutes. The owner confirmed timeline grouping works on 2026-11-07 and supplied the [0.4.9 screenshot](doku/SCREENSHOTS.md#049-seat-mode-and-timeline-groups-german). Detailed grouped-edit, cancel and undo/redo acceptance remains pending.
+
 ## 0.4.8 - 2026-11-07
 
+- Remove duplicate left-hand captions from action-button rows. Keep a blank alignment cell so buttons remain in the right column; button text and full tooltips are retained.
 - Align catalog save/delete, profile reset/save/delete and import/export buttons in the right column of shared 50:50 action tables. Keep bearing-name and Save to catalog in the same footer table. Native face/position SelectionCommandInputs remain outside tables because Fusion explicitly excludes them; exact right-column alignment of those two selectors is not implemented.
 - Restore shared label/control tables to 50:50 at the owner's follow-up request, including values, selectors and checkboxes across Bearing Seat, Bearing Catalog and Settings. Retain version 0.4.8.
 - Apply the same ratio to the previously native-width Bearing Seat header fields (seat mode, bearing search and catalog choice) and the bearing-name field. Keep header, Preview and name/save controls in separate table sections so moving them does not reorder the dialog. Retain full search help in the field/label tooltip.

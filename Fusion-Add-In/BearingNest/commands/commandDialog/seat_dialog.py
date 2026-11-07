@@ -48,7 +48,8 @@ class SeatDialog:
             if design is not None:
                 batches, self._discovery_errors = seat_edit.batches(design)
                 for number, records in enumerate(batches, 1):
-                    batch_label = TEXT['edit_batch_label'].format(number=number, count=len(records), identity=records[0]['seat_id'][:8])
+                    from ...timeline_batches import label as batch_name
+                    batch_label = batch_name(records, number, TEXT['edit_batch_label'])
                     chooser.listItems.add(batch_label, False, '')
                     self._batches[batch_label] = records
         face = inputs.addSelectionInput('seat_face', TEXT['select_face'], TEXT['select_face_prompt'])
@@ -483,8 +484,17 @@ class SeatDialog:
             options['profile'] = self.catalog.profile
         if self._editing_records:
             from ... import seat_edit
-            return seat_edit.update(request[0], self._editing_records, request[-1], persist=persist, **options)
-        return seat_geometry.create_seats(*request, persist=persist, **options)
+            cuts = seat_edit.update(request[0], self._editing_records, request[-1], persist=persist, **options)
+        else:
+            cuts = seat_geometry.create_seats(*request, persist=persist, **options)
+        if persist:
+            from ... import seat_storage, timeline_batches
+            records = [seat_storage.load(cut) for cut in cuts]
+            number = (list(self._batches.values()).index(self._editing_records) + 1
+                      if self._editing_records else len(self._batches) + 1)
+            name = timeline_batches.label(records, number, TEXT['edit_batch_label'])
+            timeline_batches.group(request[0], cuts, name)
+        return cuts
 
     def clear_feedback(self):
         if self._cached_preview is not None:

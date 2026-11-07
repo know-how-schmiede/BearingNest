@@ -36,7 +36,7 @@ class EditTests(unittest.TestCase):
 
     def entity(self, kind, index):
         return NS(objectType='adsk::fusion::' + kind, isValid=True,
-            timelineObject=NS(index=index, parentGroup=None, isSuppressed=False, isValid=True),
+            timelineObject=NS(index=index, identity=index, parentGroup=None, isSuppressed=False, isValid=True),
             deleteMe=Mock(return_value=True))
 
     def tearDown(self):
@@ -98,6 +98,43 @@ class EditTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Repair required'):
                 self.edit.update(self.design, [self.record], self.values, persist=False)
             self.geometry.create_seats.assert_not_called()
+
+    def grouped(self, collapsed):
+        nodes = [self.sketch.timelineObject, self.cut.timelineObject]
+        parent = NS(count=2, parentGroup=None, isCollapsed=collapsed,
+                    index=3 if collapsed else -1, item=lambda i: nodes[i],
+                    deleteMe=Mock(return_value=True))
+        for node in nodes:
+            node.parentGroup = parent
+            if collapsed:
+                node.index = -1
+        self.design.timeline.count = self.design.timeline.markerPosition = 4 if collapsed else 5
+        return parent
+
+    def test_edit_accepts_collapsed_and_expanded_complete_groups(self):
+        for collapsed in (False, True):
+            parent = self.grouped(collapsed)
+            self.assertEqual(self.edit.editable_entities(self.design, [self.record]),
+                             [self.cut, self.sketch])
+            self.edit.update(self.design, [self.record], self.values, persist=False)
+            parent.deleteMe.assert_not_called()
+            self.cut.timelineObject.isSuppressed = False
+
+    def test_execute_ungroups_without_deleting_contents_before_replacement(self):
+        parent = self.grouped(True)
+        self.edit.update(self.design, [self.record], self.values, persist=True)
+        parent.deleteMe.assert_called_once_with(False)
+        self.cut.deleteMe.assert_called_once()
+
+    def test_group_with_downstream_features_or_foreign_contents_is_rejected(self):
+        parent = self.grouped(True)
+        self.design.timeline.count = self.design.timeline.markerPosition = 5
+        with self.assertRaisesRegex(ValueError, 'last complete'):
+            self.edit.editable_entities(self.design, [self.record])
+        self.design.timeline.count = self.design.timeline.markerPosition = 4
+        parent.count = 3
+        with self.assertRaisesRegex(ValueError, 'last complete'):
+            self.edit.editable_entities(self.design, [self.record])
 
     def test_lost_face_after_suppression_restores_old_cuts(self):
         self.mapping['face'] = []

@@ -2,6 +2,8 @@
 
 Versions are planned milestones, not implemented features or promised dates.
 
+Release 0.4.9 adds named, collapsed timeline groups per committed batch and supports editing an exact whole-batch group. The owner confirmed grouping works on 2026-11-07; see the [0.4.9 screenshot](SCREENSHOTS.md#049-seat-mode-and-timeline-groups-german). Detailed grouped-edit/cancel/undo acceptance remains open.
+
 | Version | Scope | Completion criteria |
 |---|---|---|
 | 0.1.0 | Foundation | Implemented: owner template integration, version/lifecycle setup, three English tabs, integrated assets and environment documentation. Owner reported no observed errors in the 0.1.8 trial on 2026-11-03; full platform/build acceptance remains open. |

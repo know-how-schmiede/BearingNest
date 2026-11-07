@@ -100,7 +100,8 @@ class CatalogDialog:
         tooltip(self.fields[identity], identity.removeprefix('edit_'), label)
         if button:
             compact_control(inputs, self.fields[identity], label,
-                section='catalog_save' if identity == 'catalog_save' else 'actions')
+                section='catalog_save' if identity == 'catalog_save' else 'actions',
+                show_label=False)
         elif identity == 'edit_inner_relief_enabled':
             compact_control(inputs, self.fields[identity], label)
 

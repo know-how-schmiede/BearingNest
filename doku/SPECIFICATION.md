@@ -4,6 +4,8 @@ Target starting version: 0.1.0. Requirements below are agreed unless marked **pr
 
 ## Placement and workflow
 
+Committed seat batches collect their generated sketches and cuts in one collapsed timeline group, named like the corresponding Seat mode choice. The last complete batch remains editable whether its group is expanded or collapsed. Groups with foreign contents and batches with downstream operations require repair or a later editing strategy; previews create no permanent groups.
+
 Select a planar face and one or more supported points or circle centers on that face. Circle selection supplies a center; bearing dimensions come from the library. Initial multi-placement uses shared settings. Create the seat, concentric shaft opening and inner-ring relief by cutting the selected body. Scope component/assembly transforms explicitly during the API prototype.
 
 ## Dialog

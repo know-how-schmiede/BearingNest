@@ -37,7 +37,7 @@ def _unique(design, token, role):
 
 
 def editable_entities(design, records):
-    """Reject downstream features, timeline groups and incomplete ownership before writes."""
+    """Allow an exact whole-batch group, rejecting downstream or foreign contents."""
     if not records or len({record['seat_id'] for record in records}) != len(records):
         raise ValueError('Invalid or duplicate seat records.')
     entities = []
@@ -55,17 +55,36 @@ def editable_entities(design, records):
                 raise ValueError('Repair required: generated features are shared between records.')
             entities.append(entity)
     timeline = design.timeline
-    indices = sorted(entity.timelineObject.index for entity in entities)
-    if (timeline.markerPosition != timeline.count or not indices or indices[0] < 0
-            or indices != list(range(indices[0], timeline.count))
-            or any(entity.timelineObject.parentGroup is not None for entity in entities)):
-        raise ValueError('Only the last complete BearingNest batch without later features or timeline groups can be edited.')
+    nodes = [entity.timelineObject for entity in entities]
+    parent = nodes[0].parentGroup
+    if parent is not None:
+        # A collapsed group's children have index -1. Inspect its actual children
+        # without expanding it or changing model state during validation.
+        if (any(node.parentGroup != parent for node in nodes)
+                or getattr(parent, 'count', -1) != len(nodes)
+                or getattr(parent, 'parentGroup', None) is not None):
+            raise ValueError('Only the last complete BearingNest batch can be edited.')
+        ordered = [parent.item(index) for index in range(parent.count)]
+        complete = all(any(child == node for node in nodes) for child in ordered)
+        last = parent if parent.isCollapsed else ordered[-1]
+        at_end = last.index == timeline.count - 1
+        entities = [next(entity for entity in entities if entity.timelineObject == child)
+                    for child in reversed(ordered)] if complete else entities
+    else:
+        indices = sorted(node.index for node in nodes)
+        complete = (bool(indices) and indices[0] >= 0
+                    and indices == list(range(indices[0], timeline.count))
+                    and all(node.parentGroup is None for node in nodes))
+        at_end = complete
+        entities = sorted(entities, key=lambda entity: entity.timelineObject.index, reverse=True)
+    if timeline.markerPosition != timeline.count or not complete or not at_end:
+        raise ValueError('Only the last complete BearingNest batch without later features can be edited.')
     for record in records:
         for role in ('position', 'body'):
             entity = _unique(design, record['references'][role], role)
             if any(entity == generated for generated in entities):
                 raise ValueError('Repair required: placement depends on generated seat geometry.')
-    return sorted(entities, key=lambda entity: entity.timelineObject.index, reverse=True)
+    return entities
 
 
 def update(design, records, values, *, persist, auto_flags=None, bearing=None, profile=None,
@@ -102,6 +121,9 @@ def update(design, records, values, *, persist, auto_flags=None, bearing=None, p
             persist=persist, previous_snapshots=records, auto_flags=auto_flags, **metadata)
         if persist:
             # A failure here aborts the whole execute transaction in the dialog.
+            parent = entities[0].timelineObject.parentGroup
+            if parent is not None and not parent.deleteMe(False):
+                raise RuntimeError('Could not ungroup the old batch; the command must roll back.')
             for entity in entities:
                 if not entity.isValid or not entity.deleteMe():
                     raise RuntimeError('Could not replace the old batch; the command must roll back.')

@@ -1,5 +1,15 @@
 # BearingNest in Fusion
 
+## 0.4.9: Seat mode and timeline groups (German)
+
+![BearingNest 0.4.9 with the German Seat mode list, existing bearing seats and collapsed groups in the Fusion timeline](../images/screenshots/07-11-2026_17-51-50.png)
+
+The owner supplied this screenshot on 2026-11-07 and confirmed that the new timeline grouping works. The open **Sitzmodus** list offers new-seat creation and three existing batches containing one, three and one seat respectively. Collapsed groups are visible at the end of Fusion's timeline. The dialog shows the compact 50:50 label/control layout, bearing dimensions of 22 × 7 × 8 mm, and the other parameter groups collapsed. No placement is currently selected, so Apply Seats is disabled despite Preview being enabled.
+
+The image documents the 0.4.9 dialog and grouped timeline alongside existing seats on several faces; those seats do not represent one multi-face creation batch. The owner confirmation covers the reported grouping trial. It does not establish a complete save/reopen, cancel or undo/redo test matrix, and the collapsed timeline does not expose the group names for visual comparison.
+
+## Earlier screenshots
+
 These owner-supplied screenshots document the German **0.4.5** dialog and the earlier **0.3.0**, **0.1.7** and **0.1.5** baselines. The four 0.4.5 images were supplied on 2026-11-07 and show all four tabs. They precede the compact numeric fields, startup group states and tooltips introduced in 0.4.6; expanded/collapsed groups in these images do not establish startup defaults. They do not demonstrate catalog ring-diameter transfer or completed save/delete/link actions.
 
 On 2026-11-04 the owner confirmed that the library works and existing seats can be edited, including several seats together. This is a live usage report, not a completed test matrix for save/reopen, cancellation, undo/redo, import/export or every profile operation. No screenshot below documents diagnostic markers or wall warnings.

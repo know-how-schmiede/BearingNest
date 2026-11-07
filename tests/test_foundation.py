@@ -1066,9 +1066,16 @@ class FoundationTests(unittest.TestCase):
         self.select_catalog_bearing(dialog, '608')
         values = self.entry.SeatDialog.__init__.__globals__['SeatParameters'](outside_mm=23)
         geometry = ModuleType('foundation.seat_geometry')
-        geometry.create_seats = Mock()
-        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}):
+        geometry.create_seats = Mock(return_value=['cut'])
+        timeline = importlib.import_module('foundation.timeline_batches')
+        storage = importlib.import_module('foundation.seat_storage')
+        with patch.dict(sys.modules, {'foundation.seat_geometry': geometry}), \
+                patch.object(storage, 'load', return_value={'seat_id': '1234567890'}), \
+                patch.object(timeline, 'group') as group:
             dialog._apply((1, 2, [3], values), persist=True)
+        expected = timeline.label([{'seat_id': '1234567890'}], 1,
+                                  dialog.__init__.__globals__['TEXT']['edit_batch_label'])
+        group.assert_called_once_with(1, ['cut'], expected)
         options = geometry.create_seats.call_args.kwargs
         self.assertEqual(options['bearing']['D_mm'], 23)
         self.assertTrue(options['bearing']['dimensions_overridden'])
